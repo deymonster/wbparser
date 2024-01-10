@@ -19,13 +19,6 @@ log:
 	docker-compose -f docker-compose.yaml logs --tail=150 -f wb-parser-bot
 shell:
 	docker-compose -f docker-compose.yaml exec wb-parser-bot /bin/bash
-#manage:
-#	docker-compose -f docker-compose.yaml exec pool-app python manage.py $(c)
-#makemigrations:
-#	docker-compose -f docker-compose.yaml exec pool-app python manage.py makemigrations
-#migrate:
-#	docker-compose -f docker-compose.yaml exec pool-app python manage.py migrate
-#test:
-#	docker-compose -f docker-compose.yaml exec pool-app python manage.py test
+
 
 
