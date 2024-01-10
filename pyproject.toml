@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "wb-parser-bot"
+version = "0.1.0"
+description = "Parser bot for WB Franchise"
+authors = ["deymonster <deymonster@yandex.ru>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11.5"
+requests = "^2.31.0"
+python-dotenv = "^1.0.0"
+numpy = "^1.23.2"
+pandas = "^2.1.0"
+schedule = "^1.2.0"
+python-telegram-bot = "^20.5"
+sqlalchemy = "^2.0.21"
+psycopg2-binary = "^2.9.8"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
