@@ -106,6 +106,7 @@ class OperationsByDate:
     @classmethod
     def from_dict(cls, data: Dict) -> 'OperationsByDate':
         """Создание объекта из словаря"""
+
         return cls(
             date=datetime.fromisoformat(data.get('date', '')),
             operations=[Operation.from_dict(item) for item in data.get('operations', [])]
@@ -366,7 +367,10 @@ class ParserWB:
             all_operations = [OperationsByDate.from_dict(item) for item in details_data]
 
             # Фильтрация операций по датам, если они были переданы
+
             if date_from and date_to:
+                date_from = datetime.strptime(date_from, '%Y-%m-%d')
+                date_to = datetime.strptime(date_to, '%Y-%m-%d')
                 filtered_operations = [op for op in all_operations if date_from <= op.date <= date_to]
                 return filtered_operations
             else:
