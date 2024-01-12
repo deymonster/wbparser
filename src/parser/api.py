@@ -69,13 +69,14 @@ class EmployeeOperations:
 @dataclass
 class Operation:
     """Класс для хранения операций"""
-    oper_type: str
-    oper_amount: float
-    comment: Optional[str] = None
-    grouped: List['Operation'] = field(default_factory=list)
+    # dt: datetime # поле для хранения даты операции
+    oper_type: str #  тип операции
+    oper_amount: float # cумма операции
+    comment: Optional[str] = None #  комментарий - тут обычно ШК товара
+    grouped: List['Operation'] = field(default_factory=list) # дополнительный вложенный список операций
 
     @classmethod
-    def from_dict(cls, data: Dict) -> Callable:
+    def from_dict(cls, data: Dict) -> 'Operation':
         """Создание объекта из словаря"""""
         oper_type = oper_type_mapping.get(data.get('oper_type', ''), '')
         grouped = []
@@ -83,6 +84,7 @@ class Operation:
         if grouped_data and isinstance(grouped_data, list):
             grouped = [cls.from_dict(item) for item in grouped_data]
         return cls(
+            # dt=datetime.fromisoformat(data.get('dt', '')),
             oper_type=oper_type,
             oper_amount=data.get('oper_amount', 0),
             comment=data.get('comment', None),
@@ -102,7 +104,7 @@ class OperationsByDate:
     operations: List[Operation]
 
     @classmethod
-    def from_dict(cls, data: Dict) -> Callable:
+    def from_dict(cls, data: Dict) -> 'OperationsByDate':
         """Создание объекта из словаря"""
         return cls(
             date=datetime.fromisoformat(data.get('date', '')),
@@ -214,8 +216,8 @@ class ParserWB:
         except Exception as e:
             logger.error(e)
 
-    def fetch_employees(self) -> List[Employee]:
-        """Get list of employees from wb api - Получение списка сотрудников"""
+    def fetch_employees(self):
+        """Get list of employees from wb api - Получение списка сотрудников и запись экземпляр класса"""
         url = f"{self.base_url_v1}/account"
         params = {'in_short': 'false'}
         try:
@@ -353,17 +355,22 @@ class ParserWB:
 
         return result
 
-    def fetch_operations_data(self, date_from: datetime = None, date_to: datetime = None) -> List[Dict]:
+    def fetch_operations_data(self, date_from: datetime = None, date_to: datetime = None):
         self._get_supplier_id()
         params = {
             'supplier_id': self.supplier_id,
-            'from': date_from,
-            'to': date_to,
+            'all': 'true',
         }
         if operations_response := self._get_response_data_wb(url=operations_url, params=params, prefix='operations'):
             details_data = operations_response['details']
-            data = [OperationsByDate.from_dict(item) for item in details_data]
-            return data
+            all_operations = [OperationsByDate.from_dict(item) for item in details_data]
+
+            # Фильтрация операций по датам, если они были переданы
+            if date_from and date_to:
+                filtered_operations = [op for op in all_operations if date_from <= op.date <= date_to]
+                return filtered_operations
+            else:
+                return all_operations
 
     def save_to_csv(self,
                     data: List[object],
