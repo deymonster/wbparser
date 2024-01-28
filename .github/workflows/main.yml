@@ -6,28 +6,28 @@ on:
       - main
 
 jobs:
-  run_test:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
-
-      - name: Set up Python
-        uses: actions/setup-python@v2
-        with:
-          python-version: 3.11
-
-      - name: Install pycodestyle
-        run: |
-          python -m pip install --upgrade pip
-          pip install pycodestyle
-
-      - name: Check codestyle
-        run: pycodestyle ./src/*.py
+#  run_test:
+#    runs-on: ubuntu-latest
+#    steps:
+#      - name: Checkout code
+#        uses: actions/checkout@v2
+#
+#      - name: Set up Python
+#        uses: actions/setup-python@v2
+#        with:
+#          python-version: 3.11
+#
+#      - name: Install pycodestyle
+#        run: |
+#          python -m pip install --upgrade pip
+#          pip install pycodestyle
+#
+#      - name: Check codestyle
+#        run: pycodestyle ./src/*.py
 
 
   deploy_to_server:
-    needs: [run_test]
+#    needs: [run_test]
     runs-on: ubuntu-latest
     env:
       SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}

@@ -9,13 +9,12 @@ from parser.auth_fr import Auth
 from bot.logger import WBLogger
 from parser.api import ParserWB
 from parser.column_names import sale_data_column_names_mapping, \
-        operations_data_column_names_mapping
+    operations_data_column_names_mapping
 from utils.env import TELEGRAM_TOKEN
 from telegram import ReplyKeyboardMarkup
 from bot.utility import restricted
 import sys
 import os
-
 
 sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 
@@ -23,7 +22,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 logger = WBLogger(__name__).get_logger()
 
 GREET, GET_PHONE, GET_CODE, GET_START_DATE, GET_END_DATE = range(5)
-SALES_REPORT, OPERATIONS_REPORT = range(6,8)
+SALES_REPORT, OPERATIONS_REPORT = range(6, 8)
 
 
 @restricted
@@ -273,5 +272,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-
