@@ -1,6 +1,7 @@
 import csv
-from typing import Dict, Any, Callable, Union
-from utils.env import base_url_v2, base_url_v1, refresh_url, operations_url
+from typing import Dict, Any, Callable, Union, IO
+import io
+from utils.env import base_url_v2, base_url_v1, refresh_url, operations_url, shortages_url
 from datetime import datetime, timedelta
 import pandas as pd
 from typing import List, Optional
@@ -9,6 +10,74 @@ from parser.column_names import oper_type_mapping
 from bot.logger import WBLogger
 
 logger = WBLogger(__name__).get_logger()
+
+
+@dataclass
+class Shortage:
+    """Дата класс для хранения недостач"""
+    shortage_id: int
+    create_dt: datetime
+    guilty_employee_id: int
+    guilty_employee_name: str
+    amount: float
+    comment: str
+    status_id: int
+    is_history_exist: bool
+
+    @classmethod
+    def from_dict(cls, data: Dict) -> 'Shortage':
+        """Создание объекта из словаря"""
+        return cls(
+            shortage_id=data['shortage_id'],
+            create_dt=datetime.fromisoformat(data['create_dt']),
+            guilty_employee_id=data['guilty_employee_id'],
+            guilty_employee_name=data['guilty_employee_name'],
+            amount=data['amount'],
+            comment=data['comment'],
+            status_id=data['status_id'],
+            is_history_exist=data['is_history_exist']
+        )
+
+
+@dataclass
+class OfficeShortage:
+    """ Дата класс для хранения офиса с недостачами"""
+    office_id: int
+    office_name: str
+    office_amount: float
+    shortages: List[Shortage] = field(default_factory=list)
+
+    @classmethod
+    def from_dict(cls, data: Dict) -> 'OfficeShortage':
+        """Создание объекта из словаря"""
+        shortages_list = data.get("shortages", [])
+        if shortages_list and isinstance(shortages_list, list):
+            shortages_list = [Shortage.from_dict(item) for item in shortages_list]
+        return cls(
+            office_id=data["office_id"],
+            office_name=data["office_name"],
+            office_amount=data["office_amount"],
+            shortages=shortages_list,
+        )
+
+
+@dataclass
+class ResponseData:
+    """ Дата класс для хранения общего списка офисов """
+    total_amount: float
+    offices: List[OfficeShortage] = field(default_factory=list)
+
+    @classmethod
+    def from_dict(cls, data: Dict) -> 'ResponseData':
+        """Создание объекта из словаря"""
+        offices_list = data.get("offices", [])
+        if offices_list and isinstance(offices_list, list):
+            offices_list = [cls.from_dict(item) for item in offices_list]
+        return cls(
+            total_amount=data["total_amount"],
+            offices=offices_list,
+        )
+
 
 @dataclass
 class Employee:
@@ -22,7 +91,7 @@ class Employee:
     rating: float
 
     @classmethod
-    def from_dict(cls, data: Dict) -> Callable:
+    def from_dict(cls, data: Dict) -> 'Employee':
         """Создание объекта из словаря"""
         if not data.get('is_deleted'):
             return cls(
@@ -53,7 +122,7 @@ class EmployeeOperations:
         self.barcode = barcode
 
     @classmethod
-    def from_dict(cls, data: Dict) -> Callable:
+    def from_dict(cls, data: Dict) -> 'EmployeeOperations':
         """Создание объекта класса из словаря"""
         return cls(
             date=data['date'],
@@ -70,10 +139,10 @@ class EmployeeOperations:
 class Operation:
     """Класс для хранения операций"""
     # dt: datetime # поле для хранения даты операции
-    oper_type: str #  тип операции
-    oper_amount: float # cумма операции
-    comment: Optional[str] = None #  комментарий - тут обычно ШК товара
-    grouped: List['Operation'] = field(default_factory=list) # дополнительный вложенный список операций
+    oper_type: str  # тип операции
+    oper_amount: float  # cумма операции
+    comment: Optional[str] = None  # комментарий - тут обычно ШК товара
+    grouped: List['Operation'] = field(default_factory=list)  # дополнительный вложенный список операций
 
     @classmethod
     def from_dict(cls, data: Dict) -> 'Operation':
@@ -120,6 +189,7 @@ class OperationsByDate:
 # класс для хранения офисов
 class Office:
     """Класс для хранения офисов"""
+
     def __init__(self, id: int, name: str, office_shk: str):
         self.id = id
         self.name = name
@@ -129,7 +199,9 @@ class Office:
 # класс для хранения данных о продажах
 class SaleData:
     """Класс для хранения данных о продажах"""
-    def __init__(self, office_id: int,
+
+    def __init__(self,
+                 office_id: int,
                  name: str,
                  date: datetime,
                  sale_sum: int,
@@ -165,6 +237,7 @@ class SaleData:
 
 class ParserWB:
     """Parser for WB API"""
+
     def __init__(self, session):
         self.base_url_v1 = base_url_v1
         self.base_url_v2 = base_url_v2
@@ -184,7 +257,7 @@ class ParserWB:
         }
         self.session.headers.update(self.headers)
 
-    def _get_response_data_wb(self, *, url: str, params: dict, prefix: str):
+    def _get_response_data_wb(self, *, url: str, params: dict = None, prefix: str):
         """
         Get response data from wb api
 
@@ -199,6 +272,7 @@ class ParserWB:
             "office": f"Ошибка получения данных по офисам {response.status_code}",
             "sales": f"Ошибка получения данных по продажам {response.status_code}",
             "reward": f"Ошибка получения данных по вознаграждениям {response.status_code}",
+            "shortages": f"Ошибка получения данных по недостачам {response.status_code}",
             "operations": f"Ошибка получения данных по операциям {response.status_code}",
             "employees": f"Ошибка получения данных по сотрудникам {response.status_code}",
             "employees_operations": f"Ошибка получения данных по операциям сотрудников {response.status_code}",
@@ -237,7 +311,7 @@ class ParserWB:
 
         :param date_from: date from
         :param date_to: date to
-        :return: dict with employee operations
+        :return: List of dict with employee operations
         """
         url = f"{self.base_url_v2}/employees/proceeds"
         logger.info(f'Url - {url}')
@@ -259,7 +333,8 @@ class ParserWB:
                         operation = EmployeeOperations.from_dict(data)
                         if operation:
                             operations_employee.append(operation)
-                    employee_info = next((e for e in self.employees if e.employee_id == employee_data['employee_id']), None)
+                    employee_info = next((e for e in self.employees if e.employee_id == employee_data['employee_id']),
+                                         None)
                     all_operations.append({
                         'employee_id': employee_data['employee_id'],
                         'last_name': employee_info.last_name if employee_info else None,
@@ -274,6 +349,35 @@ class ParserWB:
         except Exception as e:
             logger.error(e)
         return all_operations
+
+    def fetch_shortages_data(self, date_from: str = None, date_to: str = None):
+        """Fetch all shortages from all offices """
+        result = []
+        date_from = datetime.strptime(date_from, '%Y-%m-%d')
+        date_to = datetime.strptime(date_to, '%Y-%m-%d')
+        if shortages_response := self._get_response_data_wb(url=shortages_url, prefix='shortages'):
+
+            for data in (shortages_response.get('offices') or []):
+                # Преобразование JSON в объект ResponseData
+                shortages_office_data = OfficeShortage.from_dict(data)
+                # Применение фильтрации по датам, если они были переданы
+                if date_from and date_to:
+                    filtered_shortages = [
+                        shortage for shortage in shortages_office_data.shortages
+                        if date_from <= shortage.create_dt.replace(tzinfo=None) <= date_to
+                    ]
+                    if filtered_shortages:
+                        result.append(
+                            OfficeShortage(
+                                office_id=shortages_office_data.office_id,
+                                office_name=shortages_office_data.office_name,
+                                office_amount=shortages_office_data.office_amount,
+                                shortages=filtered_shortages
+                            )
+                        )
+                else:
+                    result.append(shortages_office_data)
+            return result
 
     def fetch_offices(self):
         """Get offices from wb api - Получение всех офисов из API WB"""
@@ -291,7 +395,7 @@ class ParserWB:
         except Exception as e:
             logger.error(e)
 
-    def fetch_sales_data(self, date_from: datetime = None, date_to: datetime = None) -> Union[
+    def fetch_sales_data(self, date_from=None, date_to=None) -> Union[
         list[Any], list[SaleData]]:
         """Get sales data from wb api - Получение данных по продажам """
         result = []
@@ -322,7 +426,6 @@ class ParserWB:
             # запрос данных по вознаграждениям
             rewards_data_dict = {}
             if reward_response := self._get_response_data_wb(url=url_reward, params=params, prefix='reward'):
-
                 rewards_data_dict = {reward['date']: reward for reward in reward_response}
 
             for date, sale in sales_data_dict.items():
@@ -335,9 +438,9 @@ class ParserWB:
                 supplier_return_sum = reward_data['ext_data']['supplier_return_sum'] if reward_data else 0
 
                 sale_object = SaleData(
-                    date=datetime.strptime(date, '%Y-%m-%d'),
                     office_id=office_id,
                     name=sales_data['office_name'],
+                    date=datetime.strptime(date, '%Y-%m-%d'),
                     sale_count=sale['sale_count'],
                     return_count=sale['return_count'],
                     sale_sum=sale['sale_sum'],
@@ -351,6 +454,7 @@ class ParserWB:
                     supplier_return_sum=supplier_return_sum,
 
                 )
+
                 logger.info(f'Обработана дата {date} для офиса {office_id} -- {sale_object.name}')
                 result.append(sale_object)
 
@@ -376,6 +480,98 @@ class ParserWB:
             else:
                 return all_operations
 
+    def generate_csv_io(self, data: List[OfficeShortage], filename: str):
+        # Объект в памяти для записи CSV
+        csv_buffer = io.StringIO()
+
+        # Создаем объект writer для записи в CSV
+        csv_writer = csv.DictWriter(csv_buffer,
+                                    fieldnames=["Office ID", "Название офиса", "Общая недостача офиса", "ID недостачи",
+                                                "Дата недостачи", "ID сотрудника", "Ф.И.О сотрудника",
+                                                "Сумма недостачи", "Причина недостачи", "Status ID",
+                                                "is history exists"])
+        csv_writer.writeheader()
+        for office in data:
+            for shortage in office.shortages:
+
+                csv_writer.writerow({
+                    "Office ID": office.office_id,
+                    "Название офиса": office.office_name,
+                    "Общая недостача офиса": office.office_amount,
+                    "ID недостачи": shortage.shortage_id,
+                    "Дата недостачи": shortage.create_dt,
+                    "ID сотрудника": shortage.guilty_employee_id,
+                    "Ф.И.О сотрудника": shortage.guilty_employee_name,
+                    "Сумма недостачи": shortage.amount,
+                    "Причина недостачи": shortage.comment,
+                    "Status ID": shortage.status_id,
+                    "is history exists": shortage.is_history_exist
+                })
+        csv_buffer.seek(0)
+        buf = io.BytesIO()
+        # extract csv-string, convert it to bytes and write to buffer
+        buf.write(csv_buffer.getvalue().encode())
+        buf.seek(0)
+        # set a filename with file's extension
+        buf.name = filename
+        bytes_data = buf.getvalue()
+
+        return bytes_data
+
+
+    def save_csv_memory(self,
+                        data: List[object],
+                        filename: str,
+                        column_names_mapping: Dict[str, str]
+                        ):
+        def process_operations(operations, date):
+            for operation in operations:
+                if isinstance(operation, Operation):
+                    op_dict = operation.to_dict()
+                else:
+                    op_dict = operation
+                op_dict['date'] = date
+                filtered_item_dict = {csv_key: op_dict[obj_key] for obj_key, csv_key in column_names_mapping.items() if
+                                      obj_key in op_dict}
+
+                csv_writer.writerow(filtered_item_dict)
+                logger.info(f'Записаны данные в строку файла - {filtered_item_dict}')
+                # Рекурсивно обрабатываем вложенные операции, если они есть
+                if 'grouped' in op_dict and op_dict['grouped']:
+                    process_operations(op_dict['grouped'], date)
+
+        # Получаем имена столбцов из словаря column_names_mapping
+        column_names = list(column_names_mapping.values())
+        # Объект в памяти для записи CSV
+        csv_buffer = io.StringIO()
+        # Создаем объект writer для записи в CSV
+        csv_writer = csv.DictWriter(csv_buffer,
+                                    fieldnames=column_names)
+        csv_writer.writeheader()
+        for item in data:
+            item_dict = item.__dict__
+            # обработка операций
+            if 'operations' in item_dict and item_dict['operations']:
+                process_operations(item_dict['operations'], item_dict['date'])
+
+            else:
+
+                filtered_item_dict = {csv_key: item_dict[obj_key] for obj_key, csv_key in column_names_mapping.items()
+                                      if obj_key in item_dict}
+                csv_writer.writerow(filtered_item_dict)
+                logger.info(f'Записаны данные в строку файла - {filtered_item_dict}')
+
+        csv_buffer.seek(0)
+        buf = io.BytesIO()
+        # extract csv-string, convert it to bytes and write to buffer
+        buf.write(csv_buffer.getvalue().encode())
+        buf.seek(0)
+
+        # Устанавливаем имя файла с расширением
+        buf.name = filename
+        bytes_data = buf.getvalue()
+        return bytes_data
+
     def save_to_csv(self,
                     data: List[object],
                     filename: str,
@@ -388,7 +584,8 @@ class ParserWB:
             df = df.explode('operations')
             # Разбиваем операции на отдельные колонки
             operations_df = pd.DataFrame(df['operations'].to_list())
-            df = pd.concat([df.drop(['operations'], axis=1).reset_index(drop=True), operations_df.reset_index(drop=True)], axis=1)
+            df = pd.concat(
+                [df.drop(['operations'], axis=1).reset_index(drop=True), operations_df.reset_index(drop=True)], axis=1)
 
             if oper_type_mapings:
                 df['oper_type'] = df['oper_type'].map(oper_type_mapings)
@@ -396,7 +593,8 @@ class ParserWB:
         if 'grouped' in df.columns:
             df = df.explode('grouped')
             grouped_df = pd.DataFrame(df['grouped'].dropna().to_list())
-            df = pd.concat([df.drop(['grouped'], axis=1).reset_index(drop=True), grouped_df.reset_index(drop=True)], axis=1)
+            df = pd.concat([df.drop(['grouped'], axis=1).reset_index(drop=True), grouped_df.reset_index(drop=True)],
+                           axis=1)
         df.rename(columns=column_names_mapings, inplace=True)
         df.to_csv(filename, index=False)
         return None
@@ -434,7 +632,8 @@ class ParserWB:
     def save_to_csv_mananagers_operations(self, data: List[Dict], filename: str):
         with open(filename, 'w', newline='') as csvfile:
             fieldnames = ['ID сотрудника', 'Фамилия', 'Имя', 'Отчество', 'Телефон', 'Дата трудоустройства', 'Рейтинг',
-                          'Дата операции', 'Принято вещей', 'Возвраты', 'Возвраты (сумма)', 'Продажи', 'Продажи (сумма)',
+                          'Дата операции', 'Принято вещей', 'Возвраты', 'Возвраты (сумма)', 'Продажи',
+                          'Продажи (сумма)',
                           'ШК офиса']
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
             writer.writeheader()
@@ -459,19 +658,3 @@ class ParserWB:
                         })
                     else:
                         logger.info(f'Нет данных по операциям для сотрудника {employee["employee_id"]}')
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

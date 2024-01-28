@@ -6,7 +6,8 @@ from parser.auth_api import AuthApi
 from parser.auth_fr import Auth
 from bot.logger import WBLogger
 from parser.api import ParserWB
-from parser.column_names import sale_data_column_names_mapping
+from parser.column_names import sale_data_column_names_mapping, operations_data_column_names_mapping, \
+    shortages_data_column_names_mapping
 from utils.env import TELEGRAM_TOKEN
 from telegram import ReplyKeyboardMarkup
 from bot.utility import restricted
@@ -136,6 +137,7 @@ async def send_report(update: Update, context: CallbackContext):
     parser.fetch_employees()
     logger.info(" End of fetch employees")
     date_from_str = context.user_data['start_date'].strftime('%Y-%m-%d')
+    logger.info(f'Type of date from - {type(date_from_str)}')
     date_to_str = context.user_data['end_date'].strftime('%Y-%m-%d')
     report_type = context.user_data.get('report_type')
     filename = ''
@@ -144,12 +146,23 @@ async def send_report(update: Update, context: CallbackContext):
         data = parser.fetch_sales_data(date_from=date_from_str, date_to=date_to_str)
         logger.info(f"Get data - {data}")
         filename = f"sales_data/sales_data_{date_from_str} - {date_to_str} - {context.user_data['phone']}.csv"
-        parser.save_to_csv(data=data, filename=filename, column_names_mapings=sale_data_column_names_mapping)
+        file = parser.save_csv_memory(data=data, filename=filename, column_names_mapping=sale_data_column_names_mapping)
+
+    elif report_type == "shortages":
+        logger.info("Begin to fetch shortages")
+        data = parser.fetch_shortages_data(date_from=date_from_str, date_to=date_to_str)
+        logger.info(f"Get data - {data}")
+        filename = f"shortages_{date_from_str} - {date_to_str} - {context.user_data['phone']}.csv"
+        file = parser.generate_csv_io(data=data, filename=filename)
+
     elif report_type == "operations":
         logger.info("Begin to fetch operations data")
         operations_data = parser.fetch_operations_data(date_from=date_from_str, date_to=date_to_str)
         filename = f"operations_data/operations_data_{date_from_str} - {date_to_str} - {context.user_data['phone']}.csv"
-        parser.safe_to_csv_operations(data=operations_data, filename=filename)
+        file = parser.save_csv_memory(data=operations_data,
+                                      filename=filename,
+                                      column_names_mapping=operations_data_column_names_mapping)
+        # parser.safe_to_csv_operations(data=operations_data, filename=filename)
     elif report_type == "managers":
         logger.info(f'Begin to fetch managers data')
         managers_data = parser.fetch_employee_data(date_from=date_from_str, date_to=date_to_str)
@@ -171,8 +184,9 @@ async def send_report(update: Update, context: CallbackContext):
         filename = f"operations_data/manager_operations_data_{date_from_str} - {date_to_str} - {context.user_data['phone']}.csv"
         parser.save_to_csv_mananagers_operations(data=managers_data, filename=filename)
     await update.message.reply_text("Отчет сформирован")
-    with open(filename, 'rb') as file:
-        await context.bot.send_document(chat_id=update.effective_chat.id, document=file, filename=filename)
+    # with open(filename, 'rb') as file:
+    #     await context.bot.send_document(chat_id=update.effective_chat.id, document=file, filename=filename)
+    await context.bot.send_document(chat_id=update.effective_chat.id, document=file, filename=filename)
     await update.message.reply_text("Отчет отправлен")
     return GREET
 
@@ -180,6 +194,7 @@ async def send_report(update: Update, context: CallbackContext):
 async def show_menu(update: Update) -> int:
     keyboard = [
         ["Отчет по продажам"],
+        ["Отчет по недостачам"],
         ["Отчет по операциям"],
         ["Отчет по менеджерам"],
         ["Отмена"]
@@ -193,6 +208,8 @@ async def choose_report(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     user_choice = update.message.text
     if user_choice == "Отчет по продажам":
         context.user_data['report_type'] = 'sales'
+    elif user_choice == "Отчет по недостачам":
+        context.user_data['report_type'] = 'shortages'
     elif user_choice == "Отчет по операциям":
         context.user_data['report_type'] = 'operations'
     elif user_choice == "Отчет по менеджерам":
