@@ -1,13 +1,15 @@
 from telegram import Update
-from telegram.ext import (CommandHandler, ContextTypes, ConversationHandler,
-                          CallbackContext, ApplicationBuilder, MessageHandler, filters)
+from telegram.ext import (CommandHandler, ContextTypes,
+                          ConversationHandler,
+                          CallbackContext, ApplicationBuilder,
+                          MessageHandler, filters)
 from bot.utility import validate_phone_number, validate_date
 from parser.auth_api import AuthApi
 from parser.auth_fr import Auth
 from bot.logger import WBLogger
 from parser.api import ParserWB
-from parser.column_names import sale_data_column_names_mapping, operations_data_column_names_mapping, \
-    shortages_data_column_names_mapping
+from parser.column_names import sale_data_column_names_mapping, \
+        operations_data_column_names_mapping
 from utils.env import TELEGRAM_TOKEN
 from telegram import ReplyKeyboardMarkup
 from bot.utility import restricted
@@ -32,32 +34,42 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     :return: int"""
     logger.info("Start begin")
     user = update.message.from_user
-    await update.message.reply_text(f"Приветствую тебя {user.first_name} для продолжения необходимо авторизоваться в ЛК. Введите номер телефона привязанный к ЛК WB")
+    await update.message.reply_text(
+        f"Приветствую тебя {user.first_name} "
+        f"для продолжения необходимо авторизоваться в ЛК. "
+        f"Введите номер телефона привязанный к ЛК WB")
     return GET_PHONE
 
 
-async def get_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """ Состояние для получения номера телефона для авторизации, проверка наличия  токена,
-     если токен валидный то получаем сессию для работы, если токена нет или просрочен то
+async def get_phone(update: Update,
+                    context: ContextTypes.DEFAULT_TYPE) -> int:
+    """ Состояние для получения номера телефона
+    для авторизации, проверка наличия  токена,
+     если токен валидный то получаем сессию для работы,
+     если токена нет или просрочен то
      ожидаем от пользователя код из ЛК
      """
     phone_number = update.message.text
     phone = validate_phone_number(phone_number)
     if phone_number == "Отмена":
-        await update.message.reply_text("Выберите действие или начните заново командой /start")
+        await update.message.reply_text(
+            "Выберите действие или начните заново командой /start")
         return GREET
     if phone is None:
-        await update.message.reply_text("Неверный номер телефона. Попробуйте еще раз")
+        await update.message.reply_text(
+            "Неверный номер телефона. Попробуйте еще раз")
         return GET_PHONE
     context.user_data['auth'] = Auth()
     context.user_data["phone"] = phone
     session = context.user_data['auth'].get_franchise_session(phone)
     auth_status = context.user_data['auth'].get_auth_status()
     if auth_status == "NEED_CODE":
-        await update.message.reply_text(f"Отлично! Вы ввели номер {phone}, теперь введите код из ЛК")
+        await update.message.reply_text(
+            f"Отлично! Вы ввели номер {phone}, теперь введите код из ЛК")
         return GET_CODE
     elif auth_status == "ERROR":
-        await update.message.reply_text("Слишком много запросов кода. Повторите запрос позднее")
+        await update.message.reply_text(
+            "Слишком много запросов кода. Повторите запрос позднее")
         return ConversationHandler.END
     else:
         await update.message.reply_text(f"Вы уже авторизованы с номером {phone}!")
@@ -66,11 +78,13 @@ async def get_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 
 async def get_code(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """ Состояние для получения кода из ЛК от пользователя, далее отправка телефона и кода для получения
+    """ Состояние для получения кода из ЛК от пользователя,
+    далее отправка телефона и кода для получения
     новой сессии"""
     code = update.message.text
     if code == "Отмена":
-        await update.message.reply_text("Выберите действие или начните заново командой /start")
+        await update.message.reply_text(
+            "Выберите действие или начните заново командой /start")
         return GREET
     context.user_data['code'] = code
     phone = context.user_data['phone']
@@ -92,15 +106,18 @@ async def get_code(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 #     return GET_START_DATE
 
 
-async def get_start_date(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def get_start_date(update: Update,
+                         context: ContextTypes.DEFAULT_TYPE) -> int:
     """ Состояние для получения от пользователя даты начала отчета"""
     start_date = update.message.text
     if start_date == "Отмена":
-        await update.message.reply_text("Выберите действие или начните заново командой /start")
+        await update.message.reply_text(
+            "Выберите действие или начните заново командой /start")
         return GREET
     start_date = validate_date(start_date)
     if start_date is None:
-        await update.message.reply_text("Неверный формат даты. Попробуйте еще раз")
+        await update.message.reply_text(
+            "Неверный формат даты. Попробуйте еще раз")
         return GET_START_DATE
     context.user_data['start_date'] = start_date
     await update.message.reply_text(f"Отлично! Дата начала отчета: {start_date}. "
@@ -157,15 +174,18 @@ async def send_report(update: Update, context: CallbackContext):
 
     elif report_type == "operations":
         logger.info("Begin to fetch operations data")
-        operations_data = parser.fetch_operations_data(date_from=date_from_str, date_to=date_to_str)
-        filename = f"operations_data/operations_data_{date_from_str} - {date_to_str} - {context.user_data['phone']}.csv"
+        operations_data = parser.fetch_operations_data(date_from=date_from_str,
+                                                       date_to=date_to_str)
+        filename = f"operations_data/operations_data_{date_from_str} " \
+                   f"- {date_to_str} - {context.user_data['phone']}.csv"
         file = parser.save_csv_memory(data=operations_data,
                                       filename=filename,
                                       column_names_mapping=operations_data_column_names_mapping)
         # parser.safe_to_csv_operations(data=operations_data, filename=filename)
     elif report_type == "managers":
         logger.info(f'Begin to fetch managers data')
-        managers_data = parser.fetch_employee_data(date_from=date_from_str, date_to=date_to_str)
+        managers_data = parser.fetch_employee_data(date_from=date_from_str,
+                                                   date_to=date_to_str)
         api_parser = AuthApi()
         api_parser.get_token()
         for employee in managers_data:
@@ -175,13 +195,16 @@ async def send_report(update: Update, context: CallbackContext):
             logger.info(f'API data - {api_data}')
             if api_data:
                 for day in api_data:
-                    api_date = day.get('date_created').split('T')[0]  # получаем дату записи входа
-                    api_barcode = day.get('barcode') # получаем ШК офиса
+                    # дата записи входа
+                    api_date = day.get('date_created').split('T')[0]
+                    # получаем ШК офиса
+                    api_barcode = day.get('barcode')
                     for operation in employee.get('operations'):
                         operation_date = operation.date
                         if api_date == operation_date:
                             operation.barcode = api_barcode
-        filename = f"operations_data/manager_operations_data_{date_from_str} - {date_to_str} - {context.user_data['phone']}.csv"
+        filename = f"operations_data/manager_operations_data_{date_from_str} " \
+                   f"- {date_to_str} - {context.user_data['phone']}.csv"
         parser.save_to_csv_mananagers_operations(data=managers_data, filename=filename)
     await update.message.reply_text("Отчет сформирован")
     # with open(filename, 'rb') as file:
