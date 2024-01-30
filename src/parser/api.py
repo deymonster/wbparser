@@ -1,7 +1,7 @@
 import csv
 from typing import Dict, Any, Callable, Union, IO
 import io
-from utils.env import base_url_v2, base_url_v1, refresh_url, operations_url, shortages_url
+from utils.env import base_url_v2, base_url_v1, refresh_url, operations_url, shortages_url, shks_url
 from datetime import datetime, timedelta
 import pandas as pd
 from typing import List, Optional
@@ -10,6 +10,66 @@ from parser.column_names import oper_type_mapping
 from bot.logger import WBLogger
 
 logger = WBLogger(__name__).get_logger()
+
+
+@dataclass
+class FoundInfo:
+    """Датакласс для foundinfo"""
+    found_in_office_id: int
+    found_at: datetime
+    found_by_employee_id: int
+    operation: str
+
+    @classmethod
+    def from_dict(cls, data: Dict) -> 'FoundInfo':
+        """Создание объекта FoundInfo из словаря"""
+        return cls(
+            found_in_office_id=data['found_in_office_id'],
+            found_at=datetime.fromisoformat(data['found_at']),
+            found_by_employee_id=data['found_by_employee_id'],
+            operation=data['operation']
+        )
+
+
+@dataclass
+class Shk:
+    """Датакласс для хранения ШК"""
+    amount: int
+    found_info: Optional[FoundInfo]
+    item_name: str
+    item_photo_url: str
+    item_site_url: str
+    new_shk_id: int
+    shk_id: int
+
+    @classmethod
+    def from_dict(cls, data: Dict) ->'Shk':
+        """Создание объекта Shk из словаря"""
+        return cls(
+            amount=data['amount'],
+            found_info=FoundInfo.from_dict(data['found_info']) if data.get('found_info') else None,
+            item_name=data['item_name'],
+            item_photo_url=data['item_photo_url'],
+            item_site_url=data['item_site_url'],
+            new_shk_id=data['new_shk_id'] if data.get('new_shk_id') else None,
+            shk_id=data['shk_id']
+        )
+
+
+@dataclass
+class ResponseShk:
+    """Дата класс для ответа по shortage_id"""
+    shks: List[Shk] = field(default_factory=list)
+
+    @staticmethod
+    def from_dict(cls, data: Dict):
+        """Создание объекта ResponseShk из словаря"""
+        shks_list = data.get("shks", [])
+        if shks_list and isinstance(shks_list, list):
+            shks_list = [Shk.from_dict(item) for item in shks_list]
+        return cls(
+            shks=shks_list
+        )
 
 
 @dataclass
@@ -23,10 +83,12 @@ class Shortage:
     comment: str
     status_id: int
     is_history_exist: bool
+    shks_data: Optional[ResponseShk] = None
 
     @classmethod
     def from_dict(cls, data: Dict) -> 'Shortage':
         """Создание объекта из словаря"""
+        shks_data = data.get('shks_data')
         return cls(
             shortage_id=data['shortage_id'],
             create_dt=datetime.fromisoformat(data['create_dt']),
@@ -35,7 +97,8 @@ class Shortage:
             amount=data['amount'],
             comment=data['comment'],
             status_id=data['status_id'],
-            is_history_exist=data['is_history_exist']
+            is_history_exist=data['is_history_exist'],
+            shks_data=ResponseShk.from_dict(shks_data) if shks_data else None
         )
 
 
@@ -60,23 +123,6 @@ class OfficeShortage:
             shortages=shortages_list,
         )
 
-
-@dataclass
-class ResponseData:
-    """ Дата класс для хранения общего списка офисов """
-    total_amount: float
-    offices: List[OfficeShortage] = field(default_factory=list)
-
-    @classmethod
-    def from_dict(cls, data: Dict) -> 'ResponseData':
-        """Создание объекта из словаря"""
-        offices_list = data.get("offices", [])
-        if offices_list and isinstance(offices_list, list):
-            offices_list = [cls.from_dict(item) for item in offices_list]
-        return cls(
-            total_amount=data["total_amount"],
-            offices=offices_list,
-        )
 
 
 @dataclass
@@ -273,6 +319,7 @@ class ParserWB:
             "sales": f"Ошибка получения данных по продажам {response.status_code}",
             "reward": f"Ошибка получения данных по вознаграждениям {response.status_code}",
             "shortages": f"Ошибка получения данных по недостачам {response.status_code}",
+            "shks": f"Ошибка получения данных по ШК в недостаче {response.status_code}",
             "operations": f"Ошибка получения данных по операциям {response.status_code}",
             "employees": f"Ошибка получения данных по сотрудникам {response.status_code}",
             "employees_operations": f"Ошибка получения данных по операциям сотрудников {response.status_code}",
@@ -358,7 +405,7 @@ class ParserWB:
         if shortages_response := self._get_response_data_wb(url=shortages_url, prefix='shortages'):
 
             for data in (shortages_response.get('offices') or []):
-                # Преобразование JSON в объект ResponseData
+                # Преобразование JSON в объект OfficeShortage
                 shortages_office_data = OfficeShortage.from_dict(data)
                 # Применение фильтрации по датам, если они были переданы
                 if date_from and date_to:
@@ -366,6 +413,18 @@ class ParserWB:
                         shortage for shortage in shortages_office_data.shortages
                         if date_from <= shortage.create_dt.replace(tzinfo=None) <= date_to
                     ]
+                    for shortage in filtered_shortages:
+                        if shks_response := self._get_response_data_wb(url=shks_url,
+                                                                       params={'shortage_id': shortage.shortage_id},
+                                                                       prefix='shks'):
+                            shks_list = shks_response.get('shks', [])
+                            shks_objects = [Shk.from_dict(item) for item in shks_list]
+                            shks_data = ResponseShk(
+                                shks=shks_objects
+                            )
+
+                            shortage.shks_data = shks_data
+
                     if filtered_shortages:
                         result.append(
                             OfficeShortage(
@@ -486,27 +545,59 @@ class ParserWB:
 
         # Создаем объект writer для записи в CSV
         csv_writer = csv.DictWriter(csv_buffer,
-                                    fieldnames=["Office ID", "Название офиса", "Общая недостача офиса", "ID недостачи",
-                                                "Дата недостачи", "ID сотрудника", "Ф.И.О сотрудника",
-                                                "Сумма недостачи", "Причина недостачи", "Status ID",
-                                                "is history exists"])
+                                    fieldnames=[
+                                        "Office ID",
+                                        "Название офиса",
+                                        "Общая недостача офиса",
+                                        "ID недостачи",
+                                        "Дата недостачи",
+                                        "ID сотрудника",
+                                        "Ф.И.О сотрудника",
+                                        "Сумма недостачи",
+                                        "Причина недостачи",
+                                        "Status ID",
+                                        "is history exists",
+                                        "Стоимость недостачи по ШК",
+                                        "Наименование товара",
+                                        "URL на фото товара",
+                                        "URL товара в каталоге",
+                                        "Новый ШК",
+                                        "Основной ШК",
+                                        "Найдено в офисе ID",
+                                        "Дата находки",
+                                        "Кем найдено ID сотрудника",
+                                        "Наименование операции"
+
+                                    ])
         csv_writer.writeheader()
         for office in data:
             for shortage in office.shortages:
-
-                csv_writer.writerow({
-                    "Office ID": office.office_id,
-                    "Название офиса": office.office_name,
-                    "Общая недостача офиса": office.office_amount,
-                    "ID недостачи": shortage.shortage_id,
-                    "Дата недостачи": shortage.create_dt,
-                    "ID сотрудника": shortage.guilty_employee_id,
-                    "Ф.И.О сотрудника": shortage.guilty_employee_name,
-                    "Сумма недостачи": shortage.amount,
-                    "Причина недостачи": shortage.comment,
-                    "Status ID": shortage.status_id,
-                    "is history exists": shortage.is_history_exist
+                for shks_data in shortage.shks_data.shks:
+                    found_info = shks_data.found_info
+                    csv_writer.writerow({
+                        "Office ID": office.office_id,
+                        "Название офиса": office.office_name,
+                        "Общая недостача офиса": office.office_amount,
+                        "ID недостачи": shortage.shortage_id,
+                        "Дата недостачи": shortage.create_dt,
+                        "ID сотрудника": shortage.guilty_employee_id,
+                        "Ф.И.О сотрудника": shortage.guilty_employee_name,
+                        "Сумма недостачи": shortage.amount,
+                        "Причина недостачи": shortage.comment,
+                        "Status ID": shortage.status_id,
+                        "is history exists": shortage.is_history_exist,
+                        "Стоимость недостачи по ШК": shks_data.amount,
+                        "Наименование товара": shks_data.item_name,
+                        "URL на фото товара": shks_data.item_photo_url,
+                        "URL товара в каталоге": shks_data.item_site_url,
+                        "Новый ШК": shks_data.new_shk_id,
+                        "Основной ШК": shks_data.shk_id,
+                        "Найдено в офисе ID": found_info.found_in_office_id if found_info else None,
+                        "Дата находки": found_info.found_at if found_info else None,
+                        "Кем найдено ID сотрудника": found_info.found_by_employee_id if found_info else None,
+                        "Наименование операции": found_info.operation if found_info else None
                 })
+
         csv_buffer.seek(0)
         buf = io.BytesIO()
         # extract csv-string, convert it to bytes and write to buffer
