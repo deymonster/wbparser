@@ -43,7 +43,7 @@ class Shk:
     shk_id: int
 
     @classmethod
-    def from_dict(cls, data: Dict) ->'Shk':
+    def from_dict(cls, data: Dict) -> 'Shk':
         """Создание объекта Shk из словаря"""
         return cls(
             amount=data['amount'],
@@ -122,7 +122,6 @@ class OfficeShortage:
             office_amount=data["office_amount"],
             shortages=shortages_list,
         )
-
 
 
 @dataclass
@@ -477,6 +476,8 @@ class ParserWB:
             if sale_response := self._get_response_data_wb(url=url_sales, params=params, prefix='sales'):
                 try:
                     sales_data = sale_response[0]
+                    if sales_data['by_office'] is None:
+                        continue
                     sales_data_dict = {sale['date']: sale for sale in sales_data['by_office']}
                 except Exception as e:
                     logger.error(f'Ошибка при обработке данных для офиса {office_id}: {e}')
@@ -596,7 +597,7 @@ class ParserWB:
                         "Дата находки": found_info.found_at if found_info else None,
                         "Кем найдено ID сотрудника": found_info.found_by_employee_id if found_info else None,
                         "Наименование операции": found_info.operation if found_info else None
-                })
+                    })
 
         csv_buffer.seek(0)
         buf = io.BytesIO()
@@ -608,7 +609,6 @@ class ParserWB:
         bytes_data = buf.getvalue()
 
         return bytes_data
-
 
     def save_csv_memory(self,
                         data: List[object],
