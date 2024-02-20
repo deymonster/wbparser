@@ -23,7 +23,7 @@ def convert_sale_data_to_sale_object_in(office_id, date, name, sale_count, retur
         sale_count=sale_count,
         return_count=return_count,
         sale_sum=int(sale_sum),
-        return_sum=return_sum,
+        return_sum=int(return_sum),
         proceeds=int(proceeds),
         amount=int(amount),
         bags_sum=bags_sum,
