@@ -1,6 +1,8 @@
 import csv
 from typing import Dict, Any, Callable, Union, IO
 import io
+
+from parser.service import safe_sale_object_to_db
 from utils.env import base_url_v2, base_url_v1, refresh_url, operations_url, shortages_url, shks_url
 from datetime import datetime, timedelta
 import pandas as pd
@@ -517,7 +519,8 @@ class ParserWB:
 
                 logger.info(f'Обработана дата {date} для офиса {office_id} -- {sale_object.name}')
                 result.append(sale_object)
-
+        logger.info('Begin to write data to DB')
+        safe_sale_object_to_db(sale_objects=result)
         return result
 
     def fetch_operations_data(self, date_from: datetime = None, date_to: datetime = None):

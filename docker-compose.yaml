@@ -1,6 +1,18 @@
 version: '3.8'
 
 services:
+  wb-db:
+    image: postgres:14-alpine
+    container_name: wb-db
+    restart: always
+    ports:
+      - "5432:5432"
+    volumes:
+      - wb-db-data:/var/lib/postgresql/data/pgdata
+    env_file:
+      - .env
+    environment:
+      PGDATA: /var/lib/postgresql/data/pgdata
   wb-parser-bot:
     build:
       context: .
@@ -13,5 +25,12 @@ services:
     volumes:
       - ./src:/home/wb_user/bot
     restart: on-failure
+    depends_on:
+      - wb-db
+
+volumes:
+  wb-db-data:
+
+
 
 
