@@ -19,7 +19,7 @@ services:
       dockerfile: Dockerfile
     container_name: wb-parser-bot
     image: wb-parser-bot:latest
-    command: ["python3", "main_bot.py"]
+    command: bash start.sh
     env_file:
       - .env
     volumes:
