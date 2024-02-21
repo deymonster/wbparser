@@ -17,7 +17,7 @@ class SaleObject(Base):
     amount = Column(Integer)
     bags_sum = Column(Integer)
     office_rating = Column(Float)
-    percent = Column(Integer)
+    percent = Column(Float)
     office_rating_sum = Column(Integer)
     supplier_return_sum = Column(Integer)
 

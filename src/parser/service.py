@@ -27,8 +27,8 @@ def convert_sale_data_to_sale_object_in(office_id, date, name, sale_count, retur
         proceeds=int(proceeds),
         amount=int(amount),
         bags_sum=bags_sum,
-        office_rating=int(office_rating),
-        percent=int(percent),
+        office_rating=round(float(office_rating), 3),
+        percent=round(float(percent), 2),
         office_rating_sum=int(office_rating_sum),
         supplier_return_sum=supplier_return_sum,
     )
