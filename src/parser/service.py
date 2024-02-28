@@ -5,7 +5,7 @@ from pydantic import ValidationError
 from db.db import get_db
 
 from parser.schemas import SaleObjectIn
-from parser.models import SaleObject
+from parser.models import SaleObject, OfficeObject
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.exc import NoResultFound
 from bot.logger import WBLogger
@@ -42,6 +42,13 @@ def get_or_none(session: Session, model, **kwargs):
         return None
 
 
+def get_office_info(session: Session, office_id):
+    """Получение офиса констант по office_id"""
+
+    office_data = session.query(OfficeObject).filter_by(office_id=office_id).first()
+    return office_data if office_data else None
+
+
 def safe_sale_object_to_db(sale_objects: List[dict]):
     """ Сервис функция для валидации входных данных - списка SaleObjectIn и запись их в БД"""
     for sale_object in sale_objects:
@@ -56,7 +63,36 @@ def safe_sale_object_to_db(sale_objects: List[dict]):
                         f"Данные для даты {sale_object_in.date} "
                         f"и офиса {sale_object_in.office_id} уже существуют. Пропускаем.")
                     continue
-                db_data = SaleObject(**sale_object_in.model_dump())
+                # office_data = get_office_info(db, sale_object_in.office_id)
+                office_data = get_or_none(db, OfficeObject, office_id=sale_object_in.office_id)
+                logger.info(f'Office data - {office_data}')
+                # Вычисление дополнительных полей
+                reward_plan = round(float(sale_object_in.sale_sum * sale_object_in.percent), 2)
+                salary_fund_plan = round(float(sale_object_in.sale_sum * office_data.salary_rate), 2)
+                actual_salary_fund = round(float(max(salary_fund_plan, office_data.min_wage)), 2)
+                difference_salary_fund = salary_fund_plan - actual_salary_fund
+                daily_rent = round(float(office_data.rent / 30), 2)
+                daily_administration = round(float(office_data.administration / 30), 2)
+                daily_internet = office_data.internet / 30
+
+                maintenance = round(float(sale_object_in.proceeds / (1000000 * 630)), 2)
+                profitability = round(
+                    float(reward_plan - actual_salary_fund - daily_administration - daily_internet - maintenance), 2)
+
+                db_data = SaleObject(
+                    **sale_object_in.model_dump(),
+                    company=office_data.company,
+                    manager=office_data.manager,
+                    reward_plan=reward_plan,
+                    salary_fund_plan=salary_fund_plan,
+                    actual_salary_fund=actual_salary_fund,
+                    difference_salary_fund=difference_salary_fund,
+                    rent=daily_rent,
+                    administration=daily_administration,
+                    internet=daily_internet,
+                    maintenance=maintenance,
+                    profitability=profitability
+                )
                 db.add(db_data)
                 logger.info(f"Данные записаны - {db_data}")
             except ValidationError as e:

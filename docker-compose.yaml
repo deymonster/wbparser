@@ -22,6 +22,8 @@ services:
     command: bash start.sh
     env_file:
       - .env
+    environment:
+      WAIT-HOSTS: "wb-db"
     volumes:
       - ./src:/home/wb_user/bot
     restart: on-failure

@@ -248,20 +248,20 @@ class SaleData:
     """Класс для хранения данных о продажах"""
 
     def __init__(self,
-                 office_id: int,
-                 name: str,
-                 date: datetime,
-                 sale_sum: int,
-                 sale_count: int,
-                 return_sum: int,
-                 return_count: int,
-                 proceeds: int,
-                 amount: int,
-                 bags_sum: int,
-                 office_rating: float,
-                 percent: int,
-                 office_rating_sum: int,
-                 supplier_return_sum: int,
+                 office_id: int,  # id офиса
+                 name: str,  # наименование офиса
+                 date: datetime,  # дата
+                 sale_sum: int,  # продажи
+                 sale_count: int, # количество продаж
+                 return_sum: int, # возвраты
+                 return_count: int,  # количество возвратов
+                 proceeds: int,  # вознаграждения
+                 amount: int,  # объем продаж
+                 bags_sum: int,  # пакеты
+                 office_rating: float,  # рейтинг ПВЗ
+                 percent: int,  # тариф ставка грейд
+                 office_rating_sum: int,  # сумма рейтинга
+                 supplier_return_sum: int,  # сумма возвратов
                  ):
         self.office_id = office_id
         self.name = name
