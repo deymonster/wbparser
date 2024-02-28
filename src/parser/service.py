@@ -67,15 +67,15 @@ def safe_sale_object_to_db(sale_objects: List[dict]):
                 office_data = get_or_none(db, OfficeObject, office_id=sale_object_in.office_id)
                 logger.info(f'Office data - {office_data}')
                 # Вычисление дополнительных полей
-                reward_plan = round(float(sale_object_in.sale_sum * sale_object_in.percent), 2)
-                salary_fund_plan = round(float(sale_object_in.sale_sum * office_data.salary_rate), 2)
+                reward_plan = round(float(sale_object_in.proceeds * sale_object_in.percent / 100), 2)
+                salary_fund_plan = round(float(sale_object_in.proceeds * office_data.salary_rate / 100), 2)
                 actual_salary_fund = round(float(max(salary_fund_plan, office_data.min_wage)), 2)
-                difference_salary_fund = salary_fund_plan - actual_salary_fund
+                difference_salary_fund = actual_salary_fund - salary_fund_plan
                 daily_rent = round(float(office_data.rent / 30), 2)
                 daily_administration = round(float(office_data.administration / 30), 2)
-                daily_internet = office_data.internet / 30
+                daily_internet = round(float(office_data.internet / 30), 2)
 
-                maintenance = round(float(sale_object_in.proceeds / (1000000 * 630)), 2)
+                maintenance = round(float(sale_object_in.proceeds / 1000000 * 630), 2)
                 profitability = round(
                     float(reward_plan - actual_salary_fund - daily_administration - daily_internet - maintenance), 2)
 
