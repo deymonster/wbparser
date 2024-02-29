@@ -501,7 +501,8 @@ class ParserWB:
                 office_rating_sum = reward_data['ext_data']['office_rating_sum'] if reward_data else 0
                 supplier_return_sum = reward_data['ext_data']['supplier_return_sum'] if reward_data else 0
                 office_speed_sum = reward_data['ext_data']['office_speed_sum'] if reward_data else 0
-
+                if office_speed_sum is None:
+                    office_speed_sum = 0
                 sale_object = SaleData(
                     office_id=office_id,
                     name=sales_data['office_name'],
