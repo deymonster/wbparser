@@ -37,6 +37,7 @@ class SaleObject(Base):
     percent = Column(Float)
     office_rating_sum = Column(Integer)
     supplier_return_sum = Column(Integer)
+    office_speed_sum = Column(Float)
 
     reward_plan = Column(Float)
     salary_fund_plan = Column(Float)

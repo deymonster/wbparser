@@ -262,6 +262,7 @@ class SaleData:
                  percent: int,  # тариф ставка грейд
                  office_rating_sum: int,  # сумма рейтинга
                  supplier_return_sum: int,  # сумма возвратов
+                 office_speed_sum: float  # скорость
                  ):
         self.office_id = office_id
         self.name = name
@@ -277,6 +278,7 @@ class SaleData:
         self.percent = percent
         self.office_rating_sum = office_rating_sum
         self.supplier_return_sum = supplier_return_sum
+        self.office_speed_sum = office_speed_sum
 
     def to_dict(self):
         return self.__dict__
@@ -498,6 +500,7 @@ class ParserWB:
                 percent = reward_data['ext_data']['percent'][0] if reward_data else 0
                 office_rating_sum = reward_data['ext_data']['office_rating_sum'] if reward_data else 0
                 supplier_return_sum = reward_data['ext_data']['supplier_return_sum'] if reward_data else 0
+                office_speed_sum = reward_data['ext_data']['office_speed_sum'] if reward_data else 0
 
                 sale_object = SaleData(
                     office_id=office_id,
@@ -514,6 +517,7 @@ class ParserWB:
                     percent=percent,
                     office_rating_sum=office_rating_sum,
                     supplier_return_sum=supplier_return_sum,
+                    office_speed_sum=office_speed_sum
 
                 )
 

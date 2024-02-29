@@ -15,7 +15,7 @@ logger = WBLogger(__name__).get_logger()
 
 def convert_sale_data_to_sale_object_in(office_id, date, name, sale_count, return_count, sale_sum, return_sum,
                                         proceeds, amount, bags_sum, office_rating, percent, office_rating_sum,
-                                        supplier_return_sum):
+                                        supplier_return_sum, office_speed_sum):
     return SaleObjectIn(
         office_id=office_id,
         date=date,
@@ -31,6 +31,7 @@ def convert_sale_data_to_sale_object_in(office_id, date, name, sale_count, retur
         percent=round(float(percent), 2),
         office_rating_sum=int(office_rating_sum),
         supplier_return_sum=supplier_return_sum,
+        office_speed_sum=round(float(office_speed_sum), 2)
     )
 
 
@@ -70,7 +71,7 @@ def safe_sale_object_to_db(sale_objects: List[dict]):
                 reward_plan = round(float(sale_object_in.proceeds * sale_object_in.percent / 100), 2)
                 salary_fund_plan = round(float(sale_object_in.proceeds * office_data.salary_rate / 100), 2)
                 actual_salary_fund = round(float(max(salary_fund_plan, office_data.min_wage)), 2)
-                difference_salary_fund = actual_salary_fund - salary_fund_plan
+                difference_salary_fund = round(float(actual_salary_fund - salary_fund_plan), 2),
                 daily_rent = round(float(office_data.rent / 30), 2)
                 daily_administration = round(float(office_data.administration / 30), 2)
                 daily_internet = round(float(office_data.internet / 30), 2)

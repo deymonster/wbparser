@@ -19,5 +19,6 @@ class SaleObjectIn(BaseModel):
     percent: float
     office_rating_sum: int
     supplier_return_sum: int
+    office_speed_sum: float
 
 
