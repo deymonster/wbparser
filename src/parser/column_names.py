@@ -13,7 +13,8 @@ sale_data_column_names_mapping = {
     'office_rating': 'Рейтинг ПВЗ',
     'percent': 'Тариф (ставка грейда)',
     'office_rating_sum': 'Сумма рейтинга',
-    'supplier_return_sum': 'Сумма возвратов поставщика'
+    'supplier_return_sum': 'Сумма возвратов поставщика',
+    'office_speed_sum': 'Скорость'
 
 }
 

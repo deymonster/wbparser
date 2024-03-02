@@ -78,7 +78,8 @@ def safe_sale_object_to_db(sale_objects: List[dict]):
 
                 maintenance = round(float(sale_object_in.proceeds / 1000000 * 630), 2)
                 profitability = round(
-                    float(reward_plan - actual_salary_fund - daily_administration - daily_internet - maintenance), 2)
+                    float(reward_plan - actual_salary_fund -
+                          daily_administration - daily_internet - maintenance - daily_rent), 2)
 
                 db_data = SaleObject(
                     **sale_object_in.model_dump(),
