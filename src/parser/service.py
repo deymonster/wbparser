@@ -66,6 +66,9 @@ def safe_sale_object_to_db(sale_objects: List[dict]):
                     continue
                 # office_data = get_office_info(db, sale_object_in.office_id)
                 office_data = get_or_none(db, OfficeObject, office_id=sale_object_in.office_id)
+                if not office_data:
+                    logger.warning(f"Отсутствуют данные для офиса {sale_object_in.office_id}. Пропускаем.")
+                    continue
                 logger.info(f'Office data - {office_data}')
                 # Вычисление дополнительных полей
                 reward_plan = round(float(sale_object_in.proceeds * sale_object_in.percent / 100), 2)
