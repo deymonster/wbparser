@@ -1,33 +1,62 @@
-from telegram import Update
+import itertools
+
+from warnings import filterwarnings
+
+from pydantic import ValidationError
+from telegram.warnings import PTBUserWarning
+from telegram.ext import CallbackQueryHandler
+
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import (CommandHandler, ContextTypes,
                           ConversationHandler,
-                          CallbackContext, ApplicationBuilder,
+                          CallbackContext, ApplicationBuilder, CallbackQueryHandler,
                           MessageHandler, filters)
 from bot.utility import validate_phone_number, validate_date
+from db.db import get_db
 from parser.auth_api import AuthApi
 from parser.auth_fr import Auth
 from bot.logger import WBLogger
 from parser.api import ParserWB
 from parser.column_names import sale_data_column_names_mapping, \
     operations_data_column_names_mapping
-from utils.env import TELEGRAM_TOKEN
+from parser.constants import field_names
+from parser.schemas import OfficeModel
+from utils.env import TELEGRAM_TOKEN, TELEGRAM_TOKEN2
 from telegram import ReplyKeyboardMarkup
 from bot.utility import restricted
 import sys
 import os
+
+from parser.service import get_all_offices, get_office_info, delete_office, update_office_field, add_office
 
 sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 
 # set up logging
 logger = WBLogger(__name__).get_logger()
 
+# remove warning
+filterwarnings(action="ignore", message=r".*CallbackQueryHandler", category=PTBUserWarning)
+
 GREET, GET_PHONE, GET_CODE, GET_START_DATE, GET_END_DATE = range(5)
-SALES_REPORT, OPERATIONS_REPORT = range(6, 8)
+
+
+OFFICES_MENU, VIEW_OFFICES, ADD_OFFICE, SELECT_OFFICE, EDIT_OFFICE, DELETE_OFFICE = range(5, 11)
+
+# Shortcut for ConversationHandler.END
+END = ConversationHandler.END
+
+# Pagination
+current_page = 0
+items_per_page = 10
+
+# Constants for bot
 
 
 @restricted
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Send a message when the command /start is issued.
+
+
     :param update: Update
     :param context: Context
     :return: int"""
@@ -40,6 +69,295 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     return GET_PHONE
 
 
+@restricted
+async def offices(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """ Команда для работы с офисами """
+
+    text = (
+        "Вы можете просмотреть, изменить данные по офисам или удалить офис или завершить диалог"
+        "\nДля отмены просто введите команду /cancel."
+    )
+    buttons = [
+        [
+            InlineKeyboardButton(text="Просмотреть офисы", callback_data=str(VIEW_OFFICES)),
+            InlineKeyboardButton(text="Добавить офис", callback_data=str(ADD_OFFICE)),
+        ]
+    ]
+    keyboard = InlineKeyboardMarkup(buttons)
+
+    query = update.callback_query
+    if query:
+        # Если да, то редактируем сообщение
+        await query.edit_message_text(text=text, reply_markup=keyboard)
+    else:
+        # Если нет, то отправляем новое сообщение
+        await update.message.reply_text(text=text, reply_markup=keyboard)
+
+    return OFFICES_MENU
+
+
+# Просмотр офисов
+async def view_offices(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    logger.info('View offices')
+    query = update.callback_query
+    if query:
+        await query.answer()
+    current_page = context.user_data.get('current_page', 0)
+    with get_db() as db:
+        office_list = get_all_offices(db_session=db)
+        total_offices = len(office_list)
+        pages = total_offices // items_per_page + (total_offices % items_per_page > 0)
+        offices = office_list[current_page * items_per_page:(current_page + 1) * items_per_page]
+
+    if not offices:
+        text = "Список офисов пуст"
+        if query:
+            await query.answer(text, show_alert=True)
+        else:
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=text)
+        return OFFICES_MENU
+
+    keyboard_buttons = []
+    for office in offices:
+        button_text = office['name']
+        callback_data = f"office_{office['office_id']}"
+        keyboard_buttons.append([InlineKeyboardButton(text=button_text, callback_data=callback_data)])
+
+    # Добавляем кнопки пагинации в отдельный ряд
+    pagination_buttons = []
+    if current_page > 0:
+        pagination_buttons.append(InlineKeyboardButton("Назад", callback_data="prev_page"))
+    if current_page < pages - 1:
+        pagination_buttons.append(InlineKeyboardButton("Вперед", callback_data="next_page"))
+    if pagination_buttons:
+        keyboard_buttons.append(pagination_buttons)
+
+    keyboard_buttons.append([InlineKeyboardButton("В начальное меню", callback_data="return_to_start")])
+
+    reply_markup = InlineKeyboardMarkup(keyboard_buttons)
+    message_text = "Список офисов:"
+    if query:
+        await query.edit_message_text(text=message_text, reply_markup=reply_markup)
+    else:
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=message_text, reply_markup=reply_markup)
+
+    return VIEW_OFFICES
+
+
+# Обработчики для кнопок пагинации
+
+async def previous_page(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    context.user_data['current_page'] = max(context.user_data.get('current_page', 0) - 1, 0)
+    await view_offices(update, context)
+    return VIEW_OFFICES
+
+
+async def next_page(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    context.user_data['current_page'] = context.user_data.get('current_page', 0) + 1
+    await view_offices(update, context)
+    return VIEW_OFFICES
+
+
+async def return_to_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    context.user_data['current_page'] = 0
+    await offices(update, context)
+    return OFFICES_MENU
+
+
+async def edit_office_field(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    callback_data = query.data
+    _, field, office_id = callback_data.split('_')
+    # Сохраняем информацию о том, какое поле и офис нужно обновить, в context.user_data
+    context.user_data['edit_office'] = {'office_id': office_id, 'field': field}
+    # Запрашиваем у пользователя новое значение для поля
+    await context.bot.send_message(chat_id=update.effective_chat.id,
+                                   text=f"Введите новое значение для {field}:")
+    return EDIT_OFFICE
+
+
+async def save_office_field(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text
+    office_id = context.user_data['edit_office']['office_id']
+    field = context.user_data['edit_office']['field']
+
+    # Обновляем поле в базе данных
+    with get_db() as db:
+        success = update_office_field(db, office_id, field, text)
+    if success:
+        field_name = field_names.get(field, field)
+        await context.bot.send_message(chat_id=update.effective_chat.id,
+                                       text=f"Поле {field_name} было обновлено.")
+    else:
+        await context.bot.send_message(chat_id=update.effective_chat.id,
+                                       text="Произошла ошибка при обновлении поля.")
+    await select_office(update, context, office_id)
+    return SELECT_OFFICE
+
+
+# Просмотр информации по офису
+async def select_office(update: Update, context: ContextTypes.DEFAULT_TYPE, office_id=None):
+    query = update.callback_query
+    logger.info('Begin select office ')
+    if query:
+        callback_data = query.data
+        if not office_id and callback_data.startswith("office_"):
+            office_id = callback_data.split("_")[1]
+        await query.answer()
+    else:
+        if not office_id:
+            logger.error("No office_id provided to select_office function.")
+            return
+    with get_db() as db:
+        office_info = get_office_info(db, office_id)
+
+        if office_info:
+            message_texts = [f"Информация по офису {office_id} - {office_info['name']}:\n"]
+
+            for field, value in office_info.items():
+                if field == 'id':
+                    continue
+                field_name = field_names.get(field, field)
+                message_texts.append(f"{field_name}: {value}")
+            edit_buttons = []
+            for field in office_info.keys():
+                if field == 'id':
+                    continue
+                button_text = f"Изменить {field_names.get(field, field)}"
+                edit_buttons.append(InlineKeyboardButton(button_text, callback_data=f"edit_{field}_{office_id}"))
+
+            keyboard = [edit_buttons[i:i + 2] for i in range(0, len(edit_buttons), 2)]
+            keyboard.append([InlineKeyboardButton("Назад", callback_data=f"back_to_view_offices"),
+                             InlineKeyboardButton("Удалить офис", callback_data=f"delete_{office_id}")])
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await context.bot.send_message(chat_id=update.effective_chat.id, text='\n'.join(message_texts),
+                                           reply_markup=reply_markup)
+
+        else:
+            message_text = ["Неизвестный запрос"]
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=message_text)
+    return SELECT_OFFICE
+
+
+# Удаление офиса
+async def confirm_delete_office(update: Update,
+                                context: ContextTypes.DEFAULT_TYPE):
+    """ Обработчик  подтверждения удаления офиса"""
+
+    query = update.callback_query
+    await query.answer()
+    logger.info('Confirm delete office called')
+    office_id = query.data.split('_')[1]
+    confirm_text = f"Вы уверены, что хотите удалить офис с ID {office_id}?"
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("Да, удалить", callback_data=f"perform_delete_{office_id}")],
+        [InlineKeyboardButton("Отмена", callback_data=f"cancel_delete_{office_id}")]
+    ])
+    await query.edit_message_text(text=confirm_text, reply_markup=keyboard)
+
+    return DELETE_OFFICE
+
+
+async def perform_delete_office(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """ Обработчик нажатия кнопки Да, удалить"""
+
+    logger.info('Perform Delete Office')
+    query = update.callback_query
+    callback_data = update.callback_query.data
+    await query.answer()
+    with get_db() as db:
+        if callback_data.startswith("perform_delete_"):
+            office_id = callback_data.split("_")[2]
+            success = delete_office(db, office_id)
+            if success:
+                await context.bot.send_message(chat_id=update.effective_chat.id, text=f"Офис с ID {office_id} был удален.")
+                await view_offices(update, context)
+                return VIEW_OFFICES
+            else:
+                await context.bot.send_message(chat_id=update.effective_chat.id,
+                                               text=f"Произошла ошибка при удалении офиса с ID {office_id}.")
+                return SELECT_OFFICE
+        else:
+            message_text = ["Неизвестный запрос"]
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=message_text)
+            return SELECT_OFFICE
+
+
+async def cancel_delete_office(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    office_id = query.data.split('_')[2]
+    await select_office(update, context, office_id)
+    return SELECT_OFFICE
+
+
+async def add_office_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработчик для добавления нового офиса"""
+    query = update.callback_query
+    await query.answer()
+    logger.info('ADD office handler begin')
+    instructions = (
+        "Введите данные о новом офисе. Каждый параметр должен быть на новой строке.\n\n"
+        "Формат:\n"
+        "Office ID\n"
+        "Название ПВЗ\n"
+        "Компания\n"
+        "РФ\n"
+        "Площадь\n"
+        "Аренда\n"
+        "Ставка оплаты\n"
+        "Минимальная оплата\n"
+        "Интернет\n"
+        "Администрация\n"
+    )
+    await context.bot.send_message(chat_id=update.effective_chat.id, text=instructions)
+    return ADD_OFFICE
+
+
+async def save_new_office(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    logger.info('Save new office begin')
+    # Получаем данные от пользователя
+    office_data_text = update.message.text.strip()
+    office_data_lines = office_data_text.split('\n')
+    if len(office_data_lines) < 10:
+        await context.bot.send_message(chat_id=update.effective_chat.id,
+                                       text="Вы ввели недостаточно данных. Пожалуйста, введите информацию по каждому параметру на новой строке.")
+        return ADD_OFFICE
+    try:
+        # Создаем экземпляр модели OfficeModel из введенных данных
+        office_data = OfficeModel(
+            office_id=office_data_lines[0],
+            name=office_data_lines[1],
+            company=office_data_lines[2],
+            manager=office_data_lines[3],
+            office_area=office_data_lines[4],
+            rent=office_data_lines[5],
+            salary_rate=office_data_lines[6],
+            min_wage=office_data_lines[7],
+            internet=office_data_lines[8],
+            administration=office_data_lines[9]
+        )
+    except ValidationError as e:
+        await context.bot.send_message(chat_id=update.effective_chat.id,
+                                       text=f"Ошибка в введенных данных: {e}")
+        return ADD_OFFICE
+    with get_db() as db:
+        success = add_office(db, office_data.dict())
+    if success:
+        await context.bot.send_message(chat_id=update.effective_chat.id,
+                                       text="Новый офис успешно добавлен.")
+    else:
+        await context.bot.send_message(chat_id=update.effective_chat.id,
+                                       text="Произошла ошибка при добавлении офиса.")
+    await view_offices(update, context)
+    return VIEW_OFFICES
+
+
+
+#################################
+### Работа с API WB
 async def get_phone(update: Update,
                     context: ContextTypes.DEFAULT_TYPE) -> int:
     """ Состояние для получения номера телефона
@@ -88,7 +406,6 @@ async def get_code(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data['code'] = code
     phone = context.user_data['phone']
     session = context.user_data['auth'].connect_with_code(phone, code)
-    logger.info(f'Session after connect with code  - {session}')
     if session:
         context.user_data['session'] = session
         await update.message.reply_text("Вы успешно авторизованы!")
@@ -247,12 +564,25 @@ async def choose_report(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     return GET_START_DATE
 
 
+
+
 async def get_plugin_data(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     pass
 
 
+async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Отмена и окончание диалога"""
+
+    await update.message.reply_text(
+        "Вы отменили выбор, для повтора можете выбрать команду /start или /offices", reply_markup=ReplyKeyboardRemove()
+    )
+
+    return ConversationHandler.END
+
+
 def main() -> None:
-    application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+    application = ApplicationBuilder().token(TELEGRAM_TOKEN2).build()
+    logger.info('Main function')
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
         states={
@@ -260,13 +590,58 @@ def main() -> None:
             GET_CODE: [MessageHandler(filters=filters.TEXT & ~filters.COMMAND, callback=get_code)],
             GREET: [MessageHandler(filters=filters.TEXT & ~filters.COMMAND, callback=choose_report)],
             GET_START_DATE: [MessageHandler(filters=filters.TEXT & ~filters.COMMAND, callback=get_start_date)],
-            GET_END_DATE: [MessageHandler(filters=filters.TEXT & ~filters.COMMAND, callback=get_end_date)]
+            GET_END_DATE: [MessageHandler(filters=filters.TEXT & ~filters.COMMAND, callback=get_end_date)],
+
         },
-        fallbacks=[CommandHandler("start", start)],
-        per_user=True
+        fallbacks=[CommandHandler("cancel", cancel)],
+        allow_reentry=True,
+        per_user=True,
+
+    )
+    application.add_handler(conv_handler)
+    # Обработчик команды /offices
+    conv_handler_office = ConversationHandler(
+        entry_points=[CommandHandler("offices", offices)],
+        states={
+            OFFICES_MENU: [
+                           CallbackQueryHandler(view_offices, pattern='^' + str(VIEW_OFFICES) + '$'),
+                           CallbackQueryHandler(add_office_handler, pattern='^' + str(ADD_OFFICE) + '$')
+                           ],
+            VIEW_OFFICES: [
+
+                        CallbackQueryHandler(select_office, pattern='^office_'),
+                        CallbackQueryHandler(previous_page, pattern='^prev_page$'),
+                        CallbackQueryHandler(next_page, pattern='^next_page$'),
+                        CallbackQueryHandler(return_to_start, pattern='^return_to_start$')
+
+                           ],
+            ADD_OFFICE: [
+                MessageHandler(filters=filters.TEXT & ~filters.COMMAND, callback=save_new_office),
+            ],
+            SELECT_OFFICE: [
+
+                CallbackQueryHandler(view_offices, pattern='^back_to_view_offices$'),
+                CallbackQueryHandler(confirm_delete_office, pattern='^delete_'),
+                CallbackQueryHandler(edit_office_field, pattern='^edit_'),
+                CallbackQueryHandler(return_to_start, pattern='^return_to_start$')
+            ],
+            EDIT_OFFICE: [
+                MessageHandler(filters=filters.TEXT & ~filters.COMMAND, callback=save_office_field),
+                ],
+
+            DELETE_OFFICE: [
+                CallbackQueryHandler(perform_delete_office, pattern='^perform_delete_'),
+                CallbackQueryHandler(cancel_delete_office, pattern='^cancel_delete_'),
+            ],
+
+        },
+        fallbacks=[CommandHandler("cancel", cancel)],
+        allow_reentry=True,
+        per_user=True,
+
     )
 
-    application.add_handler(conv_handler)
+    application.add_handler(conv_handler_office)
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 

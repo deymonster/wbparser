@@ -7,9 +7,10 @@ class OfficeObject(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     office_id = Column(Integer, unique=True)
+    name = Column(String)
     company = Column(String)
     manager = Column(String)
-    office_area = Column(Integer, default=0)
+    office_area = Column(Float, default=0.0)
     rent = Column(Float)
     salary_rate = Column(Float)
     min_wage = Column(Integer)

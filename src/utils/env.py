@@ -30,6 +30,7 @@ EMPLOYEE_URL = os.getenv('EMPLOYEE_URL')
 
 # Telegram
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
+TELEGRAM_TOKEN2 = os.getenv('TELEGRAM_TOKEN2')
 
 # ADMINS
 ADMINS_STRING = os.getenv('ADMINS')

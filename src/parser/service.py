@@ -1,6 +1,8 @@
 from typing import List
 
 from pydantic import ValidationError
+from sqlalchemy import inspect
+from sqlalchemy.exc import SQLAlchemyError
 
 from db.db import get_db
 
@@ -9,6 +11,8 @@ from parser.models import SaleObject, OfficeObject
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.exc import NoResultFound
 from bot.logger import WBLogger
+
+import csv
 
 logger = WBLogger(__name__).get_logger()
 
@@ -43,11 +47,78 @@ def get_or_none(session: Session, model, **kwargs):
         return None
 
 
-def get_office_info(session: Session, office_id):
+def get_all_offices(db_session):
+    """ Функция для получения всех офисов"""
+
+    try:
+        offices = db_session.query(OfficeObject).all()
+        office_list = [{'office_id': office.office_id, 'name': office.name} for office in offices]
+        return office_list
+    except Exception as e:
+        logger.error(f"Error in get_all_offices: {e}")
+        return []
+
+
+def get_office_info(db_session, office_id):
     """Получение офиса констант по office_id"""
 
-    office_data = session.query(OfficeObject).filter_by(office_id=office_id).first()
-    return office_data if office_data else None
+    try:
+        office_data = db_session.query(OfficeObject).filter_by(office_id=office_id).first()
+        if office_data:
+            return {c.key: getattr(office_data, c.key)
+                    for c in inspect(office_data).mapper.column_attrs}
+        return None
+    except Exception as e:
+        logger.error(f"Error in get_office_info: {e}")
+        return []
+
+
+def update_office_field(db_session, office_id, field, new_value):
+    """Обновление полей офиса"""
+    try:
+        office_data = db_session.query(OfficeObject).filter_by(office_id=office_id).first()
+        if office_data:
+            setattr(office_data, field, new_value)
+            db_session.commit()
+            return True
+        else:
+            logger.error(f"Office with ID {office_id} not found.")
+            return False
+    except SQLAlchemyError as e:
+        db_session.rollback()
+        logger.error(f"Error in update_office_field: {e}")
+        return False
+
+
+def add_office(db_session, office_data):
+    """Добавление нового офиса в базу данных"""
+    try:
+        new_office = OfficeObject(**office_data)
+        db_session.add(new_office)
+        db_session.commit()
+        return True
+    except SQLAlchemyError as e:
+        db_session.rollback()
+        logger.error(f"Error in add_office: {e}")
+        return False
+
+
+def delete_office(db_session, office_id):
+    """Удаление офиса по ID"""
+
+    try:
+        office_to_delete = db_session.query(OfficeObject).filter_by(office_id=office_id).first()
+        if office_to_delete:
+            db_session.delete(office_to_delete)
+            db_session.commit()
+            return True
+        else:
+            logger.error(f"Office with ID {office_id} not found.")
+            return False
+    except SQLAlchemyError as e:
+        db_session.rollback()
+        logger.error(f"Error in delete_office: {e}")
+        return False
 
 
 def safe_sale_object_to_db(sale_objects: List[dict]):
@@ -103,3 +174,19 @@ def safe_sale_object_to_db(sale_objects: List[dict]):
             except ValidationError as e:
                 logger.error(f"Ошибка валидации данных: {e}")
                 continue
+
+
+def read_csv_to_dict(file_name):
+    """Читаем существующий CSV-файл и возвращаем содержимое в виде списка словарей."""
+
+    data = []
+    with open(file_name, 'r', newline='', encoding='utf-8') as file:
+        csv_reader = csv.DictReader(file)
+        for row in csv_reader:
+            data.append(row)
+    return data
+
+
+def update_csv_with_db_data(csv_file_name='processed_data.csv'):
+    existing_data = read_csv_to_dict(csv_file_name)
+    existing_data_indexed = {int(item['office_id']): item for item in existing_data}
