@@ -168,10 +168,12 @@ async def edit_office_field(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     callback_data = query.data
-    _, field, office_id = callback_data.split('_')
+    _, *field_parts, office_id = callback_data.split('_')
+    field = '_'.join(field_parts)
     # Сохраняем информацию о том, какое поле и офис нужно обновить, в context.user_data
     context.user_data['edit_office'] = {'office_id': office_id, 'field': field}
     # Запрашиваем у пользователя новое значение для поля
+    field = field_names.get(field, field)
     await context.bot.send_message(chat_id=update.effective_chat.id,
                                    text=f"Введите новое значение для {field}:")
     return EDIT_OFFICE
