@@ -6,3 +6,6 @@
 __pycache__/
 *.DS_Store
 .idea/
+
+.src/main.py
+.src/test_parser.py
