@@ -777,7 +777,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 
 def main() -> None:
-    application = ApplicationBuilder().token(TELEGRAM_TOKEN2).build()
+    application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
     logger.info("Main function")
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
