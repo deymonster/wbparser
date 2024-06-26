@@ -1,5 +1,6 @@
 from db.base_class import Base
 from sqlalchemy import Column, Integer, String, Date, DateTime, Float
+from sqlalchemy.sql import func
 
 
 class OfficeObject(Base):
@@ -66,3 +67,4 @@ class OfficeRatingObject(Base):
     limit_delivery = Column(Integer)
     total_count = Column(Integer)
     workload = Column(Float)
+    created_at = Column(Date, default=func.date(func.now()))
