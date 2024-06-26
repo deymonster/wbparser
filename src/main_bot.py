@@ -739,7 +739,7 @@ async def send_office_ratings_report(
     with get_db() as db:
         create_or_update_ratings(
             list_in=updated_office_rate_instances,
-            index_elements=["office_id"],
+            index_elements=["office_id", "created_at"],
             on_conflict_set={
                 "avg_rate",
                 "avg_region_rate",

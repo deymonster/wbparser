@@ -1,5 +1,5 @@
 from db.base_class import Base
-from sqlalchemy import Column, Integer, String, Date, DateTime, Float
+from sqlalchemy import Column, Integer, String, Date, DateTime, Float, UniqueConstraint
 from sqlalchemy.sql import func
 
 
@@ -67,4 +67,8 @@ class OfficeRatingObject(Base):
     limit_delivery = Column(Integer)
     total_count = Column(Integer)
     workload = Column(Float)
-    created_at = Column(Date, default=func.date(func.now()))
+    created_at = Column(Date, default=func.current_date(), index=True)
+
+    __table_args__ = (
+        UniqueConstraint("office_id", "created_at", name="uq_office_rating"),
+    )

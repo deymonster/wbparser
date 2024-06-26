@@ -1,4 +1,5 @@
 from typing import List, Set
+from datetime import date
 
 from pydantic import ValidationError
 from sqlalchemy import inspect, exc
@@ -251,7 +252,8 @@ def create_or_update_ratings(
     on_conflict_set: Set[str],
     db: Session,
 ):
-    """Добавление рейтинга офиса в базу данных
+    """Добавление рейтинга офиса в базу данных если дата существует в базе данных
+    то происходит обновление рейтинга,  если даты нет то создается новая запись
 
     :param list_in: Список объектов
     :param index_elements: Индексы элементов для проверки уникальности
@@ -261,6 +263,7 @@ def create_or_update_ratings(
     objs = []
     for obj_in in list_in:
         obj_dict = obj_in.dict(exclude_unset=True)
+        obj_dict["created_at"] = date.today()
         objs.append(obj_dict)
 
     insert_query = pg_insert(OfficeRatingObject).values(objs)
