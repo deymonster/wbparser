@@ -52,7 +52,17 @@ class SaleObject(Base):
     profitability = Column(Float)
 
 
+class OfficeRatingObject(Base):
+    """Office ratings"""
 
-
-
-
+    id = Column(Integer, primary_key=True, index=True)
+    office_id = Column(Integer, unique=True, index=True)
+    office_name = Column(String)
+    avg_hours = Column(Float)
+    avg_hours_by_region = Column(Float)
+    avg_rate = Column(Float)
+    avg_region_rate = Column(Float)
+    inbox_count = Column(Integer)
+    limit_delivery = Column(Integer)
+    total_count = Column(Integer)
+    workload = Column(Float)

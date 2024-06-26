@@ -1,10 +1,11 @@
 from datetime import datetime
 
-from pydantic import BaseModel,constr
+from pydantic import BaseModel, constr, Field
 
 
 class SaleObjectIn(BaseModel):
     """Schema for SaleObject in DB"""
+
     office_id: int
     name: str
     date: datetime
@@ -35,4 +36,16 @@ class OfficeModel(BaseModel):
     administration: constr(strip_whitespace=True, min_length=1)
 
 
+class OfficeRatesModel(BaseModel):
+    """Model for OfficeRates in DB"""
 
+    office_id: int
+    office_name: str | None
+    avg_hours: float | None
+    avg_hours_by_region: float | None
+    avg_rate: float | None
+    avg_region_rate: float | None
+    inbox_count: int | None
+    limit_delivery: int | None
+    total_count: int | None
+    workload: int | None

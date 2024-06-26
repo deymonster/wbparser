@@ -237,7 +237,10 @@ class OperationsByDate:
 class Office:
     """Класс для хранения офисов"""
 
-    def __init__(self, id: int, name: str, office_shk: str):
+    def __init__(self,
+                 id: int,
+                 name: str,
+                 office_shk: str):
         self.id = id
         self.name = name
         self.office_shk = office_shk
@@ -283,6 +286,34 @@ class SaleData:
     def to_dict(self):
         return self.__dict__
 
+class OfficeRates:
+    """Класс для хранения показателей офисов"""
+
+    def __init__(self,
+                 office_id: int,  # id офиса
+                 avg_rate: float,   # рейтинг
+                 avg_region_rate: float,   # рейтинг региона
+                 avg_hours: float,  # время раскладки в часах
+                 avg_hours_by_region: float,  # время раскладки в часах по региону
+                 inbox_count: int,  # товаров в коробках
+                 limit_delivery: int,  # лимит доставок
+                 total_count: int,  # товаров на пвз
+                 workload: float,  # загруженность заказами
+                 office_name: str = None,  # наименование офиса
+                 ):
+        self.office_id = office_id
+        self.avg_rate = avg_rate
+        self.avg_region_rate = avg_region_rate
+        self.avg_hours = avg_hours
+        self.avg_hours_by_region = avg_hours_by_region
+        self.inbox_count = inbox_count
+        self.limit_delivery = limit_delivery
+        self.total_count = total_count
+        self.workload = workload
+        self.office_name = office_name
+
+    def to_dict(self):
+        return self.__dict__
 
 class ParserWB:
     """Parser for WB API"""
@@ -295,6 +326,7 @@ class ParserWB:
         self.session = session
         self.access_token = None
         self.offices = []
+        self.offices_rates = []
         self.employees = []
         self.supplier_id = None
         self.headers = {
@@ -340,6 +372,10 @@ class ParserWB:
                 self.supplier_id = response['supplier_id']
         except Exception as e:
             logger.error(e)
+
+    def get_offices_ids(self):
+        """Get list of office ids"""
+        return [office.id for office in self.offices]
 
     def fetch_employees(self):
         """Get list of employees from wb api - Получение списка сотрудников и запись экземпляр класса"""
@@ -408,6 +444,9 @@ class ParserWB:
         if shortages_response := self._get_response_data_wb(url=shortages_url, prefix='shortages'):
 
             for data in (shortages_response.get('offices') or []):
+                if data.get('office_id') == 0:
+                    logger.warning(f"Неизвестный офис {data.get('office_id')}")
+                    continue  # skip empty office
                 # Преобразование JSON в объект OfficeShortage
                 shortages_office_data = OfficeShortage.from_dict(data)
                 # Применение фильтрации по датам, если они были переданы
@@ -456,6 +495,50 @@ class ParserWB:
 
         except Exception as e:
             logger.error(e)
+
+    def fetch_offices_rates(self, office_ids: List[int]) -> None:
+        """Fetch rates of all offices"""
+        url_rates = f"{self.base_url_v1}/office/rates"
+        params = {'office_ids': ','.join(map(str, office_ids))}
+        url_speed = f"{self.base_url_v1}/office/on-place"
+        url_workload = f"{self.base_url_v1}/office/info/workload"
+        merged_data = {}
+        try:
+            if response := self._get_response_data_wb(url=url_rates, params=params, prefix='office_rates'):
+                logger.info('Office rates received successfully')
+                office_rates  =  response
+                # Обработка списка рейтингов
+                for item in office_rates:
+                    office_id = item['office_id']
+                    if office_id not in merged_data:
+                        merged_data[office_id] = {}
+                    merged_data[office_id].update(item)
+            if response := self._get_response_data_wb(url=url_speed, params=params, prefix='office_on_place'):
+                logger.info('Offices speed received successfully')
+                offices_speed = response
+                # Обработка списка скорости офисов
+                for item in offices_speed:
+                    office_id = item['office_id']
+                    if office_id not in merged_data:
+                        merged_data[office_id] = {}
+                    merged_data[office_id].update(item)
+            if response := self._get_response_data_wb(url=url_workload, params=params, prefix='office_info'):
+                logger.info('Offices workload received successfully')
+                offices_workload  =  response
+                # Обработка списка производительности
+                for item in offices_workload:
+                    office_id = item['office_id']
+                    if office_id not in merged_data:
+                        merged_data[office_id] = {}
+                    merged_data[office_id].update(item)
+
+            for office_id, data in merged_data.items():
+                self.offices_rates.append(OfficeRates(**data))
+
+        except Exception as e:
+            logger.error(e)
+
+
 
     def fetch_sales_data(self, date_from=None, date_to=None) -> Union[
         list[Any], list[SaleData]]:

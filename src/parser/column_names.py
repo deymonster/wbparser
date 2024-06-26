@@ -18,6 +18,19 @@ sale_data_column_names_mapping = {
 
 }
 
+office_rates_column_names_mapping  =  {
+    'office_id': 'ID офиса',
+    'office_name': 'Название офиса',
+    'avg_hours': 'Время раскладки',
+    'avg_hours_by_region': 'Среднее время раскладки по региону',
+    'avg_rate': 'Рейтинг филиала',
+    'avg_rate_by_region': 'Средний рейтинг по региону',
+    'inbox_count': 'Товаров в коробках',
+    'limit_delivery': 'Лимит доставок',
+    'total_count': 'Товаров на ПВЗ',
+    'workload': 'Загруженность товарами'
+}
+
 
 operations_data_column_names_mapping = {
     'date': 'Дата',
