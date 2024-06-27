@@ -78,6 +78,33 @@ def get_all_offices(db_session):
         return []
 
 
+def get_all_offices_full(db_session):
+    """Получение всех офисов со всеми полями"""
+
+    try:
+        offices = db_session.query(OfficeObject).all()
+        office_data = [
+            {
+                "office_id": office.office_id,
+                "name": office.name,
+                "company": office.company,
+                "manager": office.manager,
+                "office_area": office.office_area,
+                "rent": office.rent,
+                "salary_rate": office.salary_rate,
+                "min_wage": office.min_wage,
+                "internet": office.internet,
+                "administration": office.administration,
+            }
+            for office in offices
+        ]
+
+        return office_data
+    except Exception as e:
+        logger.error(f"Error in get_all_offices_full: {e}")
+        return []
+
+
 def get_office_info(db_session, office_id):
     """Получение офиса констант по office_id"""
 

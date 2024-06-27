@@ -57,7 +57,7 @@ class OfficeRatingObject(Base):
     """Office ratings"""
 
     id = Column(Integer, primary_key=True, index=True)
-    office_id = Column(Integer, unique=True, index=True)
+    office_id = Column(Integer, index=True)
     office_name = Column(String)
     avg_hours = Column(Float)
     avg_hours_by_region = Column(Float)

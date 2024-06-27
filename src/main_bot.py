@@ -1,3 +1,4 @@
+import csv
 import itertools
 
 from warnings import filterwarnings
@@ -48,6 +49,7 @@ from parser.service import (
     update_office_field,
     add_office,
     create_or_update_ratings,
+    get_all_offices_full,
 )
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "src"))
@@ -65,9 +67,15 @@ GREET, GET_PHONE, GET_CODE, GET_START_DATE, GET_END_DATE, GET_OFFICE_RATINGS_REP
 )
 
 
-OFFICES_MENU, VIEW_OFFICES, ADD_OFFICE, SELECT_OFFICE, EDIT_OFFICE, DELETE_OFFICE = (
-    range(7, 13)
-)
+(
+    OFFICES_MENU,
+    VIEW_OFFICES,
+    ADD_OFFICE,
+    SELECT_OFFICE,
+    EDIT_OFFICE,
+    DELETE_OFFICE,
+    DUMP_OFFICE_CSV,
+) = range(7, 14)
 
 
 # Shortcut for ConversationHandler.END
@@ -113,6 +121,9 @@ async def offices(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
                 text="Просмотреть офисы", callback_data=str(VIEW_OFFICES)
             ),
             InlineKeyboardButton(text="Добавить офис", callback_data=str(ADD_OFFICE)),
+            InlineKeyboardButton(
+                text="Сохранить офисы в CSV", callback_data=str(DUMP_OFFICE_CSV)
+            ),
         ]
     ]
     keyboard = InlineKeyboardMarkup(buttons)
@@ -456,6 +467,63 @@ async def save_new_office(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return VIEW_OFFICES
 
 
+async def export_offices_to_csv(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Экспорт данных в CSV"""
+    logger.info("Export offices to CSV begin")
+    with get_db() as db:
+        office_data = get_all_offices_full(db_session=db)
+    if not office_data:
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id, text="Нет данных для экспорта."
+        )
+        return OFFICES_MENU
+
+    csv_file_path = "processed_data.csv"
+    try:
+        with open(csv_file_path, mode="w", newline="", encoding="utf-8") as file:
+            writer = csv.writer(file, quoting=csv.QUOTE_MINIMAL)
+            headers = [
+                "office_id",
+                "name",
+                "company",
+                "manager",
+                "office_area",
+                "rent",
+                "salary_rate",
+                "min_wage",
+                "internet",
+                "administration",
+            ]
+            writer.writerow(headers)
+            for office in office_data:
+
+                writer.writerow(
+                    [
+                        office["office_id"],
+                        f'"{office["name"]}"',
+                        office["company"],
+                        office["manager"],
+                        office["office_area"],
+                        office["rent"],
+                        office["salary_rate"],
+                        office["min_wage"],
+                        office["internet"],
+                        office["administration"],
+                    ]
+                )
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text=f"Данные успешно экспортированы в файл {csv_file_path}.",
+            )
+    except Exception as e:
+        logger.error(f"Ошибка при записи в CSV файл: {e}")
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text="Произошла ошибка при записи данных в CSV файл.",
+        )
+    return OFFICES_MENU
+
+
 #################################
 ### Работа с API WB
 async def get_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -777,7 +845,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 
 def main() -> None:
-    application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+    application = ApplicationBuilder().token(TELEGRAM_TOKEN2).build()
     logger.info("Main function")
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
@@ -829,6 +897,9 @@ def main() -> None:
                 ),
                 CallbackQueryHandler(
                     add_office_handler, pattern="^" + str(ADD_OFFICE) + "$"
+                ),
+                CallbackQueryHandler(
+                    export_offices_to_csv, pattern="^" + str(DUMP_OFFICE_CSV) + "$"
                 ),
             ],
             VIEW_OFFICES: [
