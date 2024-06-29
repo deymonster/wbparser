@@ -1,0 +1,50 @@
+name: Test and Build
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+#  run_test:
+#    runs-on: ubuntu-latest
+#    steps:
+#      - name: Checkout code
+#        uses: actions/checkout@v2
+#
+#      - name: Set up Python
+#        uses: actions/setup-python@v2
+#        with:
+#          python-version: 3.11
+#
+#      - name: Install pycodestyle
+#        run: |
+#          python -m pip install --upgrade pip
+#          pip install pycodestyle
+#
+#      - name: Check codestyle
+#        run: pycodestyle ./src/*.py
+
+
+  deploy_to_server:
+#    needs: [run_test]
+    runs-on: ubuntu-latest
+    env:
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      SERVER_HOST: ${{ secrets.SERVER_HOST }}
+      SERVER_USERNAME: ${{ secrets.SERVER_USERNAME }}
+    steps:
+      - uses: D3rHase/ssh-command-action@v0.2.2
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          user: ${{ secrets.SERVER_USERNAME }}
+          private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+          command: |
+            cd wb_parser_bot;
+            docker rm wb-parser-bot;
+            make stop;
+            git pull origin main;
+            make build;
+            make run;
+            
+        
