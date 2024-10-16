@@ -20,7 +20,7 @@ class OfficeObject(Base):
 
 
 class SaleObject(Base):
-    """Model poll"""
+    """Model saleobject"""
 
     id = Column(Integer, primary_key=True, index=True)
     office_id = Column(Integer)
@@ -36,6 +36,7 @@ class SaleObject(Base):
     amount = Column(Integer)
     bags_sum = Column(Integer)
     office_rating = Column(Float)
+    rate_by_region = Column(Float)
     percent = Column(Float)
     office_rating_sum = Column(Integer)
     supplier_return_sum = Column(Integer)

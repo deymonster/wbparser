@@ -17,6 +17,7 @@ class SaleObjectIn(BaseModel):
     amount: int
     bags_sum: int
     office_rating: float
+    rate_by_region: float
     percent: float
     office_rating_sum: int
     supplier_return_sum: int

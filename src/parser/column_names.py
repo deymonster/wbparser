@@ -1,42 +1,41 @@
-
 sale_data_column_names_mapping = {
-    'office_id': 'ID офиса',
-    'name': 'Название офиса',
-    'date': 'Дата',
-    'sale_count': 'Кол-во продаж',
-    'return_count': 'Кол-во возвратов',
-    'sale_sum': 'Продажи РУБ',
-    'return_sum': 'Возвраты РУБ',
-    'proceeds': 'Объем продаж РУБ',
-    'amount': 'Вознаграждение РУБ',
-    'bags_sum': 'Пакеты РУБ',
-    'office_rating': 'Рейтинг ПВЗ',
-    'percent': 'Тариф (ставка грейда)',
-    'office_rating_sum': 'Сумма рейтинга',
-    'supplier_return_sum': 'Сумма возвратов поставщика',
-    'office_speed_sum': 'Скорость'
-
+    "office_id": "ID офиса",
+    "name": "Название офиса",
+    "date": "Дата",
+    "sale_count": "Кол-во продаж",
+    "return_count": "Кол-во возвратов",
+    "sale_sum": "Продажи РУБ",
+    "return_sum": "Возвраты РУБ",
+    "proceeds": "Объем продаж РУБ",
+    "amount": "Вознаграждение РУБ",
+    "bags_sum": "Пакеты РУБ",
+    "office_rating": "Рейтинг ПВЗ",
+    "rate_by_region": "Средний рейтинг по региону",
+    "percent": "Тариф (ставка грейда)",
+    "office_rating_sum": "Сумма рейтинга",
+    "supplier_return_sum": "Сумма возвратов поставщика",
+    "office_speed_sum": "Скорость",
 }
 
-office_rates_column_names_mapping  =  {
-    'office_id': 'ID офиса',
-    'office_name': 'Название офиса',
-    'avg_hours': 'Время раскладки',
-    'avg_hours_by_region': 'Среднее время раскладки по региону',
-    'avg_rate': 'Рейтинг филиала',
-    'avg_rate_by_region': 'Средний рейтинг по региону',
-    'inbox_count': 'Товаров в коробках',
-    'limit_delivery': 'Лимит доставок',
-    'total_count': 'Товаров на ПВЗ',
-    'workload': 'Загруженность товарами'
+office_rates_column_names_mapping = {
+    "office_id": "ID офиса",
+    "office_name": "Название офиса",
+    "avg_hours": "Время раскладки",
+    "avg_hours_by_region": "Среднее время раскладки по региону",
+    "avg_rate": "Рейтинг филиала",
+    "avg_rate_by_region": "Средний рейтинг по региону",
+    "inbox_count": "Товаров в коробках",
+    "limit_delivery": "Лимит доставок",
+    "total_count": "Товаров на ПВЗ",
+    "workload": "Загруженность товарами",
 }
 
 
 operations_data_column_names_mapping = {
-    'date': 'Дата',
-    'oper_type': 'Тип операции',
-    'oper_amount': 'Сумма операции',
-    'comment': 'ШК',
+    "date": "Дата",
+    "oper_type": "Тип операции",
+    "oper_amount": "Сумма операции",
+    "comment": "ШК",
 }
 
 shortages_data_column_names_mapping = {
@@ -50,16 +49,15 @@ shortages_data_column_names_mapping = {
     "amount": "Сумма недостачи",
     "comment": "Причина недостачи",
     "status_id": "Status ID",
-    "is_history_exist": "is history exists - история?"
+    "is_history_exist": "is history exists - история?",
 }
 
 
-
-oper_type_mapping= {
-    1: 'Недостача',
-    2: 'Премирование',
-    3: 'Депремирование',
-    4: 'Брак ШК/Коллективная ответственность',
-    5: 'Вывод средств на реквизиты',
-    6: 'Вознаграждения по продажам'
+oper_type_mapping = {
+    1: "Недостача",
+    2: "Премирование",
+    3: "Депремирование",
+    4: "Брак ШК/Коллективная ответственность",
+    5: "Вывод средств на реквизиты",
+    6: "Вознаграждения по продажам",
 }

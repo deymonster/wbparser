@@ -283,6 +283,7 @@ class SaleData:
         amount: int,  # объем продаж
         bags_sum: int,  # пакеты
         office_rating: float,  # рейтинг ПВЗ
+        rate_by_region: float,  # рейтинг средний по региону
         percent: int,  # тариф ставка грейд
         office_rating_sum: int,  # сумма рейтинга
         supplier_return_sum: int,  # сумма возвратов
@@ -299,6 +300,7 @@ class SaleData:
         self.amount = amount
         self.bags_sum = bags_sum
         self.office_rating = office_rating
+        self.rate_by_region = rate_by_region
         self.percent = percent
         self.office_rating_sum = office_rating_sum
         self.supplier_return_sum = supplier_return_sum
@@ -356,9 +358,6 @@ class ParserWB:
         self.headers = {
             "Accept": "application/json.txt, text/plain, */*",
             "Referer": "https://franchise.wildberries.ru/",
-            "sec-ch-ua-mobile": "?0",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
-            "sec-ch-ua-platform": "Windows",
         }
         self.session.headers.update(self.headers)
 
@@ -664,6 +663,9 @@ class ParserWB:
                 office_rating = (
                     reward_data["ext_data"]["office_rating"] if reward_data else 0
                 )
+                rate_by_region = (
+                    reward_data["ext_data"]["rate_by_region"] if reward_data else 0
+                )
                 percent = reward_data["ext_data"]["percent"][0] if reward_data else 0
                 office_rating_sum = (
                     reward_data["ext_data"]["office_rating_sum"] if reward_data else 0
@@ -688,6 +690,7 @@ class ParserWB:
                     amount=amount,
                     bags_sum=bags_sum,
                     office_rating=office_rating,
+                    rate_by_region=rate_by_region,
                     percent=percent,
                     office_rating_sum=office_rating_sum,
                     supplier_return_sum=supplier_return_sum,
