@@ -16,6 +16,9 @@ RUN             useradd -m -d /home/${USER} ${USER} \
 
 RUN             mkdir -p ${PROJECTPATH}
 
+ADD             https://github.com/ufoscout/docker-compose-wait/releases/download/2.9.0/wait ${PROJECTPATH}/wait
+RUN             chmod +x ${PROJECTPATH}/wait
+
 RUN             curl -sSL https://install.python-poetry.org | POETRY_HOME=/etc/poetry python3 - \
                 && cd /usr/local/bin \
                 && ln -s /etc/poetry/bin/poetry \

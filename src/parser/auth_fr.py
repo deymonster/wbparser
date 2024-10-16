@@ -18,7 +18,7 @@ class Auth:
         "Referer": "https://franchise.wildberries.ru/",
         "Content-Type": "application/x-www-form-urlencoded",
         "Authorization": f"Basic {basic}",
-        "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:91.0) Gecko/20100101 Firefox/91.0"
+        "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:91.0) Gecko/20100101 Firefox/91.0",
     }
 
     def __init__(self):
@@ -34,7 +34,10 @@ class Auth:
         return self.auth_status
 
     def get_franchise_session(self, phone: str):
-
+        """Get franchise session
+        :param str phone: phone number
+        :return requests.Session: session
+        """
         self.refresh_token = self._load_refresh_token(phone)
         logger.info(f"Refresh token is {self.refresh_token}")
         # Init status code
@@ -42,24 +45,28 @@ class Auth:
         # If refresh token is not None then connect with refresh token
         if self.refresh_token:
             self.session, status_code = self.connect_with_token()
-            logger.info(f"Status code after connect with refresh token is {status_code}")
+            logger.info(
+                f"Status code after connect with refresh token is {status_code}"
+            )
             logger.info(f"Session after connect with refresh token is {self.session}")
             if self.session and status_code != 400:
                 logger.info("Session is OK")
                 return self.session
             else:
                 self._remove_refresh_token_file(phone)
-                logger.error(" Refresh token is expired. Trying to connect with phone and code")
+                logger.error(
+                    " Refresh token is expired. Trying to connect with phone and code"
+                )
 
         # If status code is 400 then refresh token is expired
         # else connect with phone and code
-        params = {
-            'phone': phone
-        }
+        params = {"phone": phone}
         try:
-            response = self.session.get(url=LOGIN_FR_URL, headers=self.headers, params=params)
+            response = self.session.get(
+                url=LOGIN_FR_URL, headers=self.headers, params=params
+            )
             logger.info(f"Response for login franchise is {response.json()}")
-            if response.status_code == 200 and response.json()['isSuccess']:
+            if response.status_code == 200 and response.json()["isSuccess"]:
                 logger.info(f"Response for login franchise is OK")
                 # send code from LK WB and pass it to _connect_with_code
                 # code = input('Enter code from LK WB: ')
@@ -68,7 +75,7 @@ class Auth:
                 # else:
                 self.auth_status = "NEED_CODE"
             else:
-                self.auth_status = response.json()['message']
+                self.auth_status = response.json()["message"]
         except Exception as e:
             logger.error(f"Error while login to franchise {e}")
             self.auth_status = "ERROR"
@@ -84,17 +91,13 @@ class Auth:
             logger.error(f"Error while removing refresh token file {e}")
 
     def connect_with_code(self, phone, code):
-        payload = {
-            'grant_type': 'password',
-            'username': phone,
-            'password': code
-        }
+        payload = {"grant_type": "password", "username": phone, "password": code}
         try:
             response = self.session.post(url=TOKEN_URL, data=payload)
             if response.status_code == 200:
-                self.token = response.json()['access_token']
-                self.session.headers.update({'Authorization': f"Bearer {self.token}"})
-                self.refresh_token = response.json()['refresh_token']
+                self.token = response.json()["access_token"]
+                self.session.headers.update({"Authorization": f"Bearer {self.token}"})
+                self.refresh_token = response.json()["refresh_token"]
                 self._save_refresh_token(self.refresh_token, phone)
                 # os.environ['refresh_token'] = self.refresh_token
                 logger.info(f"New Refresh token is taken {self.refresh_token}")
@@ -107,19 +110,18 @@ class Auth:
             return None
 
     def connect_with_token(self):
-        payload = {
-            'refresh_token': self.refresh_token,
-            'grant_type': 'refresh_token'
-        }
+        payload = {"refresh_token": self.refresh_token, "grant_type": "refresh_token"}
         logger.info(f"Payload for refresh token is {payload}")
         try:
-            response = self.session.post(url=self.token_url, data=payload, headers=self.headers)
+            response = self.session.post(
+                url=self.token_url, data=payload, headers=self.headers
+            )
             if response.status_code == 200:
-                self.token = response.json()['access_token']
-                self.session.headers.update({'Authorization': f"Bearer {self.token}"})
+                self.token = response.json()["access_token"]
+                self.session.headers.update({"Authorization": f"Bearer {self.token}"})
                 return self.session, response.status_code
             else:
-                logger.error(f'Status code: {response.status_code}')
+                logger.error(f"Status code: {response.status_code}")
                 return self.session, response.status_code
         except Exception as e:
             logger.error(f"Error while connecting with token {e}")
@@ -127,17 +129,16 @@ class Auth:
 
     def _save_refresh_token(self, refresh_token, phone):
         date_str = datetime.now().strftime("%d-%m-%Y_%H:%M:%S")
-        filename = f'refresh_token_{phone}_{date_str}.txt'
-        with open(filename, 'w') as f:
+        filename = f"refresh_token_{phone}_{date_str}.txt"
+        with open(filename, "w") as f:
             f.write(refresh_token)
 
     def _load_refresh_token(self, phone):
         try:
-            files = glob.glob(f'refresh_token_{phone}_*.txt')
+            files = glob.glob(f"refresh_token_{phone}_*.txt")
             latest_file = max(files, key=os.path.getctime)
-            with open(latest_file, 'r') as f:
+            with open(latest_file, "r") as f:
                 return f.read()
         except Exception as e:
             logger.error(f"Error while loading refresh token {e}")
             return None
-

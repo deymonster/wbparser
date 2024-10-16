@@ -12,6 +12,8 @@ token = os.getenv('token')
 refresh_token = os.getenv('refresh_token')
 basic = os.getenv('BASIC')
 operations_url = os.getenv('OPERATIONS_URL')
+shortages_url = os.getenv('SHORTAGES_URL')
+shks_url = os.getenv("SHKS_URL")
 date_from = os.getenv('DATE_FROM')
 date_to = os.getenv('DATE_TO')
 GET_EVENTS_LK_URL = os.getenv('GET_EVENTS_LK_URL')
@@ -28,6 +30,7 @@ EMPLOYEE_URL = os.getenv('EMPLOYEE_URL')
 
 # Telegram
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
+TELEGRAM_TOKEN2 = os.getenv('TELEGRAM_TOKEN2')
 
 # ADMINS
 ADMINS_STRING = os.getenv('ADMINS')

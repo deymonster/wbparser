@@ -1,17 +1,38 @@
 version: '3.8'
 
 services:
+  wb-db:
+    image: postgres:14-alpine
+    container_name: wb-db
+    restart: always
+    ports:
+      - "5432:5432"
+    volumes:
+      - wb-db-data:/var/lib/postgresql/data/pgdata
+    env_file:
+      - .env
+    environment:
+      PGDATA: /var/lib/postgresql/data/pgdata
   wb-parser-bot:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: wb-parser-bot
     image: wb-parser-bot:latest
-    command: ["python3", "main_bot.py"]
+    command: bash start.sh
     env_file:
       - .env
+    environment:
+      WAIT-HOSTS: "wb-db"
     volumes:
       - ./src:/home/wb_user/bot
     restart: on-failure
+    depends_on:
+      - wb-db
+
+volumes:
+  wb-db-data:
+
+
 
 
